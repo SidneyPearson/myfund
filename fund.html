@@ -3,108 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>基金看板 Pro - 动态趋势版</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>基金看板 Pro - 手机增强版</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+
     <style>
         :root { --up: #d93025; --down: #188038; --primary: #007bff; --bg: #f4f6f8; }
-        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; overflow-x: hidden; }
+        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; -webkit-tap-highlight-color: transparent; }
         
+        /* 顶部统计栏 */
         .header { background: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: flex-end; }
         .total-val { font-size: 26px; font-weight: 800; }
-        .profit-bar { font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 6px; margin-top: 8px; display: inline-block; }
+        .profit-bar { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px; margin-top: 8px; display: inline-block; }
         
-        .list { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
-        .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-        .card:active { background: #f0f0f0; }
+        /* 基金列表 */
+        .list { padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 80px; }
+        .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid transparent; }
+        .card:active { background: #f0f0f0; border-color: #eee; }
         .card-main { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
         .f-name { font-size: 16px; font-weight: bold; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .f-rate { font-size: 22px; font-weight: 800; font-family: "DIN Alternate", sans-serif; }
+        .f-rate { font-size: 22px; font-weight: bold; font-family: monospace; }
         
+        /* 颜色类 */
         .up { color: var(--up); } .down { color: var(--down); }
         .bg-up { background: rgba(217,48,37,0.1); color: var(--up); }
         .bg-down { background: rgba(24,128,56,0.1); color: var(--down); }
 
-        .fab { position: fixed; bottom: 30px; right: 20px; width: 56px; height: 56px; background: var(--primary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 4px 15px rgba(0,123,255,0.4); border: none; z-index: 99; }
+        /* 悬浮按钮 */
+        .fab { position: fixed; bottom: 30px; right: 20px; width: 60px; height: 60px; background: var(--primary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: 0 4px 15px rgba(0,123,255,0.4); border: none; z-index: 99; }
 
-        /* 全屏弹窗 */
-        .panel { position: fixed; inset: 0; background: #fff; z-index: 1000; display: none; flex-direction: column; padding: 20px; }
+        /* 全屏面板容器 */
+        .panel { position: fixed; inset: 0; background: #fff; z-index: 1000; display: none; flex-direction: column; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         .panel.active { display: flex; }
-        .close-btn { position: absolute; top: 15px; right: 15px; font-size: 30px; color: #ccc; border: none; background: none; z-index: 1001; }
+        .close-btn { position: absolute; top: 15px; right: 15px; font-size: 32px; color: #ccc; border: none; background: none; line-height: 1; }
         
-        /* 图表容器：高度需固定 */
-        .chart-container { flex: 1; min-height: 300px; position: relative; margin-top: 40px; }
-        .chart-hint { font-size: 11px; color: #bbb; text-align: center; margin-top: 10px; }
-        
-        input { width: 100%; padding: 15px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        /* 趋势图专用配置 */
+        .chart-container { flex: 1; min-height: 280px; position: relative; margin-top: 30px; }
+        #trendChart { touch-action: none; width: 100% !important; height: 100% !important; } 
+
+        /* 表单样式 */
+        input { width: 100%; padding: 15px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
         .btn-submit { background: var(--primary); color: #fff; padding: 16px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; }
+        .chart-hint { font-size: 11px; color: #bbb; text-align: center; margin-top: 10px; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <div>
-            <div style="font-size:12px; color:#999">估值总资产 (元)</div>
+            <div style="font-size:12px; color:#999">持仓总估值 (元)</div>
             <div class="total-val" id="total_val">0.00</div>
-            <div id="total_profit" class="profit-bar">今日盈亏: --</div>
+            <div id="total_profit" class="profit-bar">今日合计预计: --</div>
         </div>
-        <div onclick="initData()" style="font-size: 22px; padding: 10px;">🔄</div>
+        <div onclick="initData()" style="font-size: 24px; padding: 10px; cursor: pointer;">🔄</div>
     </div>
 
-    <div class="list" id="fund_list"></div>
+    <div class="list" id="fund_list">
+        <div style="text-align:center; padding:50px; color:#999;">正在加载数据线路...</div>
+    </div>
 
     <button class="fab" onclick="showEdit()">+</button>
 
     <div id="edit_panel" class="panel">
         <button class="close-btn" onclick="closePanel('edit_panel')">×</button>
-        <h2 style="margin-top:0">管理持仓</h2>
-        <input type="number" id="in_code" placeholder="基金代码 (6位)">
-        <input type="text" id="in_name" placeholder="备注名称">
-        <input type="number" id="in_share" step="0.01" placeholder="持有份额">
+        <h2 style="margin-top:0">管理基金持仓</h2>
+        <input type="number" id="in_code" placeholder="6位基金代码 (如 012414)">
+        <input type="text" id="in_name" placeholder="备注名称 (可选)">
+        <input type="number" id="in_share" step="0.0001" placeholder="持有份额">
         <input type="hidden" id="edit_idx">
-        <button class="btn-submit" onclick="save()">保存</button>
-        <button id="del_btn" style="color:red; background:none; border:none; margin-top:20px; width:100%" onclick="remove()">删除此基金</button>
+        <button class="btn-submit" onclick="save()">保存并更新列表</button>
+        <button id="del_btn" style="color:red; background:none; border:1px solid red; padding:12px; border-radius:10px; margin-top:20px; width:100%" onclick="remove()">删除此基金</button>
     </div>
 
     <div id="chart_panel" class="panel">
         <button class="close-btn" onclick="closePanel('chart_panel')">×</button>
-        <h3 id="chart_name" style="margin-bottom:0">趋势加载中...</h3>
+        <h3 id="chart_name" style="margin-bottom:0">历史趋势</h3>
         <p id="chart_code" style="color:#999; font-size:12px; margin-top:5px"></p>
         
         <div class="chart-container">
             <canvas id="trendChart"></canvas>
         </div>
         
-        <div class="chart-hint">💡 左右滑动可拖拽，双指捏合可缩放时间轴</div>
-        <button class="btn-submit" style="background:#f0f0f0; color:#333; margin-top:20px;" onclick="resetZoom()">重置缩放</button>
+        <div class="chart-hint">💡 左右滑动平移，双指捏合缩放时间轴</div>
+        <button class="btn-submit" style="background:#f0f0f0; color:#333; margin-top:15px;" onclick="safeResetZoom()">重置视图</button>
     </div>
 
     <script>
-        let myFunds = JSON.parse(localStorage.getItem('my_funds_v5') || '[]');
+        // 【核心修复：注册缩放插件】
+        Chart.register(ChartZoom);
+
+        let myFunds = JSON.parse(localStorage.getItem('hentao_mobile_v4')) || [];
         let chartInstance = null;
 
-        // 通用代理 Fetch 函数
-        async function proxyFetch(url) {
-            // 使用 corsproxy.io 这是一个相对稳定的中转站
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error('Network error');
-            return await response.text();
+        // 【优化：智能多代理切换】
+        async function smartFetch(url) {
+            const proxies = [
+                "https://corsproxy.io/?",
+                "https://api.codetabs.com/v1/proxy?quest=",
+                "https://api.allorigins.win/raw?url="
+            ];
+            for (const proxy of proxies) {
+                try {
+                    const controller = new AbortController();
+                    const id = setTimeout(() => controller.abort(), 5000); // 5秒超时
+                    const res = await fetch(proxy + encodeURIComponent(url), { signal: controller.signal });
+                    clearTimeout(id);
+                    if (res.ok) return await res.text();
+                } catch (e) { continue; }
+            }
+            throw new Error("接口当前繁忙");
         }
 
+        // 初始化/刷新列表
         async function initData() {
             const listDiv = document.getElementById('fund_list');
             if (myFunds.length === 0) {
-                listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">暂无持仓</div>';
+                listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">暂无持仓<br>点击下方 + 添加基金</div>';
                 return;
             }
-            listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">同步数据中...</div>';
+            listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在安全同步估值...</div>';
 
             const tasks = myFunds.map(async f => {
-                const url = `http://fundgz.1234567.com.cn/js/${f.code}.js?rt=${Date.now()}`;
+                const url = `https://fundgz.1234567.com.cn/js/${f.code}.js?rt=${Date.now()}`;
                 try {
-                    const text = await proxyFetch(url);
+                    const text = await smartFetch(url);
                     const match = text.match(/jsonpgz\((.*)\)/);
                     return { ...f, ...JSON.parse(match[1]), ok: true };
                 } catch (e) { return { ...f, ok: false }; }
@@ -114,118 +138,126 @@
             render(results);
         }
 
+        // 渲染列表
         function render(data) {
             let totalVal = 0, totalProfit = 0;
             const listDiv = document.getElementById('fund_list');
             listDiv.innerHTML = '';
 
             data.forEach((item, i) => {
-                if (!item.ok) return;
+                if (!item.ok) {
+                    listDiv.innerHTML += `<div class="card" onclick="showEdit(${i})">${item.code} 加载中... (点击编辑)</div>`;
+                    return;
+                }
                 const rate = parseFloat(item.gszzl);
                 const share = parseFloat(item.share || 0);
                 const marketVal = share * parseFloat(item.gsz);
                 const profit = share * (parseFloat(item.gsz) - parseFloat(item.dwjz));
+                totalVal += marketVal; totalProfit += profit;
 
-                totalVal += marketVal;
-                totalProfit += profit;
+                const clr = rate >= 0 ? 'up' : 'down';
+                const bgClr = rate >= 0 ? 'bg-up' : 'bg-down';
 
                 listDiv.innerHTML += `
                     <div class="card" onclick="viewTrend('${item.code}', '${item.name}')">
                         <div class="card-main">
                             <div class="f-name">${item.name}</div>
-                            <div class="f-rate ${rate >= 0 ? 'up' : 'down'}">${rate > 0 ? '+' : ''}${item.gszzl}%</div>
+                            <div class="f-rate ${clr}">${rate > 0 ? '+' : ''}${item.gszzl}%</div>
                         </div>
                         <div style="display:flex; justify-content:space-between; font-size:13px; color:#666">
-                            <div>估值: ${marketVal.toFixed(2)}</div>
-                            <div class="bg-${rate >= 0 ? 'up' : 'down'}" style="padding:2px 6px; border-radius:4px">
+                            <div>估值: <span style="font-weight:bold;color:#333">${marketVal.toFixed(2)}</span></div>
+                            <div class="${bgClr} profit-bar" style="margin:0; padding:2px 6px">
                                 今日: ${(profit >= 0 ? '+' : '') + profit.toFixed(2)}
                             </div>
                         </div>
-                        <div style="font-size:11px; color:#ccc; margin-top:8px" onclick="event.stopPropagation();showEdit(${i})">管理持仓 ✎</div>
+                        <div style="font-size:11px; color:#ccc; margin-top:10px" onclick="event.stopPropagation();showEdit(${i})">管理配置 ✎</div>
                     </div>
                 `;
             });
-
             document.getElementById('total_val').innerText = totalVal.toFixed(2);
             const pDom = document.getElementById('total_profit');
-            pDom.innerText = `今日盈亏: ${(totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2)}`;
+            pDom.innerText = `今日合计预计: ${(totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2)}`;
             pDom.className = `profit-bar ${totalProfit >= 0 ? 'bg-up' : 'bg-down'}`;
         }
 
-        // ================== 核心：趋势图与缩放 ==================
+        // ================== 交互式趋势图核心 ==================
 
         async function viewTrend(code, name) {
             document.getElementById('chart_panel').classList.add('active');
-            document.getElementById('chart_name').innerText = name;
+            document.getElementById('chart_name').innerText = name + " (同步中...)";
             document.getElementById('chart_code').innerText = code;
             
             if (chartInstance) chartInstance.destroy();
+            chartInstance = null;
+
+            // 增加缓存机制：同日不再重复请求数据
+            const cacheKey = `f_cache_${code}`;
+            const today = new Date().toLocaleDateString();
+            const cached = JSON.parse(localStorage.getItem(cacheKey));
+
+            if (cached && cached.date === today) {
+                renderChart(cached.data, name);
+                return;
+            }
 
             try {
-                // 获取天天基金深度历史数据 JS
-                const url = `http://fund.eastmoney.com/pingzhongdata/${code}.js`;
-                const rawJs = await proxyFetch(url);
-                
-                // 正则匹配历史净值数据
+                const url = `https://fund.eastmoney.com/pingzhongdata/${code}.js`;
+                const rawJs = await smartFetch(url);
                 const match = rawJs.match(/var Data_netWorthTrend = (\[.*?\]);/);
-                if (!match) throw new Error("Data not found");
-                
-                const fullData = JSON.parse(match[1]);
-                // 取最近180天数据展示，防止手机端太卡
-                const recentData = fullData.slice(-180);
+                const fullData = JSON.parse(match[1]).slice(-200); // 取最近200天数据，缩放更明显
 
-                const labels = recentData.map(d => new Date(d.x).toLocaleDateString('zh-CN', {month:'numeric', day:'numeric'}));
-                const values = recentData.map(d => d.y);
-
-                const ctx = document.getElementById('trendChart').getContext('2d');
-                chartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: '单位净值',
-                            data: values,
-                            borderColor: '#007bff',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            tension: 0.1,
-                            fill: false
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            zoom: {
-                                zoom: {
-                                    wheel: { enabled: true },
-                                    pinch: { enabled: true }, // 支持手机双指捏合
-                                    mode: 'x',
-                                },
-                                pan: {
-                                    enabled: true, // 支持手机左右拖拽
-                                    mode: 'x',
-                                }
-                            }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } },
-                            y: { position: 'right', grid: { color: '#eee' } }
-                        }
-                    }
-                });
+                localStorage.setItem(cacheKey, JSON.stringify({ date: today, data: fullData }));
+                renderChart(fullData, name);
             } catch (e) {
-                alert("趋势图加载失败，请重试");
-                console.error(e);
+                document.getElementById('chart_name').innerText = "趋势加载繁忙，请重试";
             }
         }
 
-        function resetZoom() {
+        function renderChart(recentData, name) {
+            document.getElementById('chart_name').innerText = name;
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: recentData.map(d => new Date(d.x).toLocaleDateString('zh-CN', {month:'numeric', day:'numeric'})),
+                    datasets: [{
+                        data: recentData.map(d => d.y),
+                        borderColor: '#007bff',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        zoom: {
+                            pan: { enabled: true, mode: 'x', threshold: 5 },
+                            zoom: {
+                                pinch: { enabled: true }, // 开启捏合缩放
+                                wheel: { enabled: true },
+                                mode: 'x'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { autoSkip: true, maxRotation: 0 } },
+                        y: { position: 'right', grid: { color: '#f0f0f0' } }
+                    }
+                }
+            });
+        }
+
+        // 【修复：安全重置视图】
+        function safeResetZoom() {
             if (chartInstance) chartInstance.resetZoom();
         }
 
-        // ================== 其他面板逻辑 ==================
+        // ================== 面板与数据存储逻辑 ==================
 
         function showEdit(idx = null) {
             const p = document.getElementById('edit_panel');
@@ -247,28 +279,34 @@
         function closePanel(id) { document.getElementById(id).classList.remove('active'); }
 
         function save() {
-            const code = document.getElementById('in_code').value;
-            const name = document.getElementById('in_name').value;
-            const share = document.getElementById('in_share').value;
+            const code = document.getElementById('in_code').value.trim();
+            const name = document.getElementById('in_name').value.trim();
+            const share = document.getElementById('in_share').value.trim();
             const idx = document.getElementById('edit_idx').value;
-            if (code.length < 6) return alert("代码无效");
-            const obj = { code, name, share: parseFloat(share) || 0 };
-            if (idx === "") myFunds.push(obj); else myFunds[idx] = obj;
-            localStorage.setItem('my_funds_v5', JSON.stringify(myFunds));
+
+            if (code.length < 6) return alert("请输入6位基金代码");
+            
+            const obj = { code, name: name || code, share: parseFloat(share) || 0 };
+            
+            if (idx === "") myFunds.push(obj);
+            else myFunds[idx] = obj;
+
+            localStorage.setItem('hentao_mobile_v4', JSON.stringify(myFunds));
             closePanel('edit_panel');
             initData();
         }
 
         function remove() {
             const idx = document.getElementById('edit_idx').value;
-            if (confirm('确定删除？')) {
+            if (confirm('确定要删除这条持仓记录吗？')) {
                 myFunds.splice(idx, 1);
-                localStorage.setItem('my_funds_v5', JSON.stringify(myFunds));
+                localStorage.setItem('hentao_mobile_v4', JSON.stringify(myFunds));
                 closePanel('edit_panel');
                 initData();
             }
         }
 
+        // 启动！
         initData();
     </script>
 </body>
