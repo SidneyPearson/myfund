@@ -20,30 +20,39 @@
         }
         ::-webkit-scrollbar { display: none; }
 
-        /* === ⚡️ 排序动效核心 CSS Start === */
+        /* === ⚡️ 修复后的动效 CSS Start === */
 
-        /* 1. 正在被手指拖着的卡片 (分身) */
+        /* 1. 拖拽时的替身 (Avatar) */
         .sortable-fallback { 
             opacity: 1 !important;
             background: #fff;
             border-radius: 14px;
-            transform: scale(1.05); /* 放大一点，表示浮起 */
-            box-shadow: 0 15px 30px rgba(0,0,0,0.2); /* 强烈的投影 */
-            z-index: 9999 !important;
+            /* 关键修复：移除了 !important，配合 gpuAcceleration: false 使用 */
+            transform: scale(1.05) rotate(1deg); 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3); /* 深阴影，制造悬浮感 */
+            z-index: 10000 !important;
             cursor: grabbing;
-            border: 1px solid var(--primary); /* 蓝色边框高亮 */
+            border: 1px solid var(--primary);
         }
 
-        /* 2. 原位置的“坑” (Ghost) */
-        /* 设为透明 (opacity: 0)，但保留物理空间 */
-        /* 这样当其他卡片“挤”过来时，就是挤到这个透明的坑里 */
+        /* 2. 原位置的坑 (Ghost) */
         .sortable-ghost { 
-            opacity: 0; 
+            opacity: 0; /* 透明坑位，实现“挤占”效果 */
         }
 
-        /* 3. 隐藏原生拖拽影像 */
+        /* 3. 隐藏原生影像 */
         .sortable-drag { opacity: 0; } 
-        /* === ⚡️ 排序动效核心 CSS End === */
+
+        /* 4. 回弹动画 */
+        @keyframes drop-rebound {
+            0% { transform: scale(1.05); }
+            50% { transform: scale(0.98); }
+            100% { transform: scale(1); }
+        }
+        .animate-drop {
+            animation: drop-rebound 0.3s ease-out;
+        }
+        /* === ⚡️ 修复后的动效 CSS End === */
 
         .header { background: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: flex-end; }
         .total-val { font-size: 26px; font-weight: 800; line-height: 1; }
@@ -54,7 +63,7 @@
         .card { 
             background: #fff; border-radius: 14px; padding: 16px; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
-            /* 关键：不需要 transition: transform，因为 SortableJS 会接管 transform */
+            /* 优化：只对非位置属性做 transition，防止拖拽卡顿 */
             transition: box-shadow 0.2s, background-color 0.2s; 
             position: relative; 
             touch-action: pan-y; 
@@ -246,7 +255,6 @@
                 const clr = rate >= 0 ? 'up' : 'down';
                 const sign = rate >= 0 ? '+' : '';
                 const isCleared = share === 0;
-
                 let badge = '';
                 const buyT = parseFloat(item.buy_target_price);
                 const sellT = parseFloat(item.target_price);
@@ -275,31 +283,35 @@
             });
             updateHeader(totalVal, totalProfit);
 
-            // 【核心优化】Sortable 配置
             if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(listDiv, {
                 // 1. 动效参数
-                animation: 350, // 让位动画时长，350ms 比较平滑
-                delay: 200,     // 长按 200ms 触发
+                animation: 350, 
+                delay: 200,     
                 delayOnTouchOnly: true,
-                
-                // 2. 核心：交换逻辑
-                swapThreshold: 0.65, // 拖动覆盖 65% 时才发生交换，防止乱跳
+                swapThreshold: 0.65, 
                 direction: 'vertical',
                 
-                // 3. 视觉反馈
-                forceFallback: true, // 强制脱离流
-                fallbackClass: 'sortable-fallback', // 浮起样式
-                ghostClass: 'sortable-ghost', // 坑位样式
-                fallbackOnBody: true, // 挂载到 body 防止遮挡
+                // 2. 【核心修复】关键配置
+                forceFallback: true, 
+                fallbackClass: 'sortable-fallback', 
+                ghostClass: 'sortable-ghost', 
+                fallbackOnBody: true, 
+                
+                // 【核心修复】：禁用 GPU 加速，让 Sortable 使用 top/left 定位
+                // 这样 CSS 里的 transform: scale() 才能生效，卡片才会跟着手指动
+                gpuAcceleration: false,
 
                 onChoose: function() {
-                    // 震动反馈
                     if (navigator.vibrate) navigator.vibrate(50);
                 },
                 onEnd: function (evt) {
-                    const item = myFunds.splice(evt.oldIndex, 1)[0];
-                    myFunds.splice(evt.newIndex, 0, item);
+                    const item = evt.item;
+                    item.classList.add('animate-drop');
+                    setTimeout(() => { item.classList.remove('animate-drop'); }, 300);
+
+                    const dataItem = myFunds.splice(evt.oldIndex, 1)[0];
+                    myFunds.splice(evt.newIndex, 0, dataItem);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
                 },
             });
