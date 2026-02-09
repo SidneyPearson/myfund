@@ -12,9 +12,11 @@
 
     <style>
         :root { --up: #d93025; --down: #188038; --primary: #007bff; --bg: #f4f6f8; }
+        /* 禁用系统默认的长按菜单，防止长按时弹出复制/粘贴菜单 */
         body { 
             margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; 
             -webkit-tap-highlight-color: transparent; overflow-x: hidden;
+            -webkit-touch-callout: none; user-select: none;
         }
         ::-webkit-scrollbar { display: none; }
         
@@ -24,47 +26,50 @@
         
         .list-container { padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 120px; }
         
-        /* === ⚡️ 拖拽动效核心代码 Start === */
+        /* === ⚡️ iOS 风格拖拽动效 Start === */
         
-        /* 1. 占位符 (Ghost): 拖走后留下的坑 */
-        .sortable-ghost { 
-            opacity: 0.6; 
-            background: #f0f4f8; 
-            border: 2px dashed #007bff; 
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
-            transform: scale(0.98); /* 微微缩小 */
-        }
-
-        /* 2. 拖拽体 (Drag/Fallback): 跟随手指移动的卡片 */
-        /* 注意：Force Fallback 模式下，这个类名非常关键 */
+        /* 1. 被拖拽的卡片 (浮起状态) */
         .sortable-fallback { 
-            opacity: 1 !important;
+            opacity: 0.95 !important;
             background: #fff;
             border-radius: 14px;
-            transform: scale(1.05) rotate(2deg); /* 放大并微微倾斜，制造悬浮感 */
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2); /* 巨大的阴影 */
-            z-index: 9999 !important; /* 确保在最上层 */
+            /* 明显放大，稍微倾斜，模拟被手指“吸起来”的感觉 */
+            transform: scale(1.08) rotate(1deg) !important; 
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3) !important;
+            z-index: 9999 !important;
             cursor: grabbing;
+            /* 加上一点边框高亮 */
+            border: 1px solid var(--primary);
         }
 
-        /* 3. 隐藏原生拖拽的丑陋半透明图 (如果有的话) */
+        /* 2. 原位置的占位 (Ghost) */
+        .sortable-ghost { 
+            opacity: 0.3; 
+            background: #e9f2ff; 
+            border: 2px dashed #007bff; 
+            transform: scale(0.95);
+            border-radius: 14px;
+        }
+
+        /* 3. 隐藏原生拖拽影像 */
         .sortable-drag { opacity: 0; } 
+        /* === ⚡️ iOS 风格拖拽动效 End === */
 
-        /* 拖拽手柄按下的反馈 */
-        .drag-handle:active { color: var(--primary); transform: scale(1.2); }
-        /* === ⚡️ 拖拽动效核心代码 End === */
-
-        .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.1s, box-shadow 0.2s; position: relative; }
+        .card { 
+            background: #fff; border-radius: 14px; padding: 16px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
+            transition: transform 0.1s, box-shadow 0.2s; 
+            position: relative; 
+            /* 关键：让触摸响应更快 */
+            touch-action: pan-y; 
+        }
         .card:active { transform: scale(0.98); background: #fafafa; }
         .card.cleared { background: #f9f9f9; opacity: 0.8; }
         
         .card-main { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
         
-        .drag-handle { 
-            color: #ddd; padding: 10px 15px 10px 0; margin-right: 0; cursor: grab; font-size: 18px; 
-            touch-action: none; transition: all 0.2s;
-        }
-
+        /* 移除原来的 handle 样式，不再需要了 */
+        
         .card-info { flex: 1; min-width: 0; margin-right: 12px; }
         .f-name { font-size: 16px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; display: block; }
         .f-rate { font-size: 22px; font-weight: bold; font-family: monospace; flex-shrink: 0; white-space: nowrap; }
@@ -113,7 +118,7 @@
     </div>
 
     <div class="list-container" id="fund_list">
-        <div style="text-align:center; padding:50px; color:#999;">正在直连数据源...</div>
+        <div style="text-align:center; padding:50px; color:#999;">正在连接数据源...</div>
     </div>
     
     <button class="fab" onclick="showEdit()">+</button>
@@ -211,7 +216,7 @@
                 updateHeader(0, 0);
                 return;
             }
-            if(listDiv.children.length === 0 || listDiv.innerText.includes('直连')) {
+            if(listDiv.children.length === 0 || listDiv.innerText.includes('数据源')) {
                 listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在直连数据源...</div>';
             }
 
@@ -253,19 +258,15 @@
                 let badge = '';
                 const buyT = parseFloat(item.buy_target_price);
                 const sellT = parseFloat(item.target_price);
-                
                 if (sellT > 0 && gsz >= sellT) badge += `<span class="tag bg-up border-up">🎯止盈</span>`;
                 if (buyT > 0 && gsz <= buyT) badge += `<span class="tag bg-down border-down">💰机会</span>`;
 
-                listDiv.innerHTML += `
+                const html = `
                     <div class="card ${isCleared ? 'cleared' : ''}" data-code="${item.code}" onclick="openChart(${index}, '${item.code}')">
                         <div class="card-main">
-                            <div style="display:flex; align-items:center; flex:1; min-width:0;">
-                                <div class="drag-handle">::</div>
-                                <div class="card-info">
-                                    <div class="f-name">${item.name || item.code}</div>
-                                    <div style="font-size:12px;color:#bbb">${item.code} ${isCleared ? '(已清仓)' : ''}</div>
-                                </div>
+                            <div class="card-info">
+                                <div class="f-name">${item.name || item.code}</div>
+                                <div style="font-size:12px;color:#bbb">${item.code} ${isCleared ? '(已清仓)' : ''}</div>
                             </div>
                             <div class="f-rate ${clr}">${ok ? sign + item.gszzl + '%' : '--'}</div>
                         </div>
@@ -278,30 +279,34 @@
                             <div style="font-size:16px; padding:0 5px;" onclick="event.stopPropagation();showEdit(${index})">⚙</div>
                         </div>
                     </div>`;
+                listDiv.innerHTML += html;
             });
             updateHeader(totalVal, totalProfit);
 
-            // 【核心修复：增强 Sortable 配置】
+            // 【核心优化：长按拖拽配置】
             if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(listDiv, {
-                handle: '.drag-handle',
-                animation: 250, // 动画慢一点更优雅
-                delay: 0, 
+                // 不再使用 handle，而是允许整个卡片拖拽
+                // 设置 delay: 350ms，实现“长按”效果
+                delay: 350, 
+                delayOnTouchOnly: true, // 只在触摸屏上启用延迟，电脑上直接拖
+                touchStartThreshold: 5, // 手指抖动容差
+                animation: 250,
                 
-                // 关键：强制回退，使用我们自定义的样式
-                forceFallback: true, 
+                // 动效核心
+                forceFallback: true, // 强制使用模拟拖拽，为了自定义样式
                 fallbackClass: 'sortable-fallback',
                 ghostClass: 'sortable-ghost',
                 
-                onStart: function() {
-                    // 震动反馈 (如果设备支持)
+                onChoose: function() {
+                    // 选中震动 (触觉反馈)
                     if (navigator.vibrate) navigator.vibrate(50);
                 },
                 onEnd: function (evt) {
                     const item = myFunds.splice(evt.oldIndex, 1)[0];
                     myFunds.splice(evt.newIndex, 0, item);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
-                    render(myFunds); 
+                    // 这里不重新 render，保持 DOM 稳定，因为 Sortable 已经动了 DOM
                 },
             });
         }
