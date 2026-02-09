@@ -24,26 +24,47 @@
         
         .list-container { padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 120px; }
         
-        /* 卡片拖拽时的样式 */
-        .sortable-ghost { opacity: 0.4; background: #e9f2ff; border: 1px dashed #007bff; }
-        .sortable-drag { background: #fff; transform: scale(1.02); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-
-        .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.1s; position: relative; }
-        .card.cleared { background: #f9f9f9; opacity: 0.8; }
+        /* === ⚡️ 拖拽动效核心代码 Start === */
         
-        /* 拖拽手柄样式优化 */
-        .drag-handle { 
-            color: #ddd; 
-            padding: 10px 10px 10px 0; /* 增大触摸区域 */
-            margin-right: 2px; 
-            cursor: grab; 
-            font-size: 16px; 
-            touch-action: none; /* 防止浏览器默认滚动 */
+        /* 1. 占位符 (Ghost): 拖走后留下的坑 */
+        .sortable-ghost { 
+            opacity: 0.6; 
+            background: #f0f4f8; 
+            border: 2px dashed #007bff; 
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+            transform: scale(0.98); /* 微微缩小 */
         }
 
+        /* 2. 拖拽体 (Drag/Fallback): 跟随手指移动的卡片 */
+        /* 注意：Force Fallback 模式下，这个类名非常关键 */
+        .sortable-fallback { 
+            opacity: 1 !important;
+            background: #fff;
+            border-radius: 14px;
+            transform: scale(1.05) rotate(2deg); /* 放大并微微倾斜，制造悬浮感 */
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2); /* 巨大的阴影 */
+            z-index: 9999 !important; /* 确保在最上层 */
+            cursor: grabbing;
+        }
+
+        /* 3. 隐藏原生拖拽的丑陋半透明图 (如果有的话) */
+        .sortable-drag { opacity: 0; } 
+
+        /* 拖拽手柄按下的反馈 */
+        .drag-handle:active { color: var(--primary); transform: scale(1.2); }
+        /* === ⚡️ 拖拽动效核心代码 End === */
+
+        .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.1s, box-shadow 0.2s; position: relative; }
+        .card:active { transform: scale(0.98); background: #fafafa; }
+        .card.cleared { background: #f9f9f9; opacity: 0.8; }
+        
         .card-main { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
         
-        /* 布局修复：防止长名称挤压 */
+        .drag-handle { 
+            color: #ddd; padding: 10px 15px 10px 0; margin-right: 0; cursor: grab; font-size: 18px; 
+            touch-action: none; transition: all 0.2s;
+        }
+
         .card-info { flex: 1; min-width: 0; margin-right: 12px; }
         .f-name { font-size: 16px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; display: block; }
         .f-rate { font-size: 22px; font-weight: bold; font-family: monospace; flex-shrink: 0; white-space: nowrap; }
@@ -167,9 +188,8 @@
         let chartInstance = null;
         let currentChartData = [];
         let currentFund = null;
-        let sortableInstance = null; // Sortable实例
+        let sortableInstance = null;
 
-        // JSONP Core
         function fetchFundJsonp(code) {
             return new Promise((resolve) => {
                 const callbackName = 'jsonpgz'; 
@@ -191,7 +211,6 @@
                 updateHeader(0, 0);
                 return;
             }
-            // 只有首次加载才显示loading，避免刷新时闪烁过大
             if(listDiv.children.length === 0 || listDiv.innerText.includes('直连')) {
                 listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在直连数据源...</div>';
             }
@@ -215,9 +234,6 @@
             listDiv.innerHTML = '';
 
             data.forEach((item, index) => {
-                // 不再区分清仓/持仓的物理顺序，而是按照 myFunds 里的顺序直接渲染
-                // 这样才能保证拖拽后的顺序是用户想要的
-                
                 const share = parseFloat(item.share || 0);
                 const gsz = parseFloat(item.gsz || 0); 
                 const marketVal = share * gsz;
@@ -241,7 +257,7 @@
                 if (sellT > 0 && gsz >= sellT) badge += `<span class="tag bg-up border-up">🎯止盈</span>`;
                 if (buyT > 0 && gsz <= buyT) badge += `<span class="tag bg-down border-down">💰机会</span>`;
 
-                const html = `
+                listDiv.innerHTML += `
                     <div class="card ${isCleared ? 'cleared' : ''}" data-code="${item.code}" onclick="openChart(${index}, '${item.code}')">
                         <div class="card-main">
                             <div style="display:flex; align-items:center; flex:1; min-width:0;">
@@ -262,25 +278,29 @@
                             <div style="font-size:16px; padding:0 5px;" onclick="event.stopPropagation();showEdit(${index})">⚙</div>
                         </div>
                     </div>`;
-                listDiv.innerHTML += html;
             });
             updateHeader(totalVal, totalProfit);
 
-            // 【核心：初始化 SortableJS】
+            // 【核心修复：增强 Sortable 配置】
             if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(listDiv, {
-                handle: '.drag-handle', // 只能通过手柄拖拽
-                animation: 150,
+                handle: '.drag-handle',
+                animation: 250, // 动画慢一点更优雅
                 delay: 0, 
+                
+                // 关键：强制回退，使用我们自定义的样式
+                forceFallback: true, 
+                fallbackClass: 'sortable-fallback',
                 ghostClass: 'sortable-ghost',
-                dragClass: 'sortable-drag',
+                
+                onStart: function() {
+                    // 震动反馈 (如果设备支持)
+                    if (navigator.vibrate) navigator.vibrate(50);
+                },
                 onEnd: function (evt) {
-                    // 拖拽结束，更新数组顺序
                     const item = myFunds.splice(evt.oldIndex, 1)[0];
                     myFunds.splice(evt.newIndex, 0, item);
-                    // 保存新顺序到本地存储
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
-                    // 重新渲染以更新 index 参数
                     render(myFunds); 
                 },
             });
@@ -293,7 +313,6 @@
             pDom.className = `profit-bar ${profit >= 0 ? 'bg-up' : 'bg-down'}`;
         }
 
-        // ================== 图表逻辑 ==================
         function fetchTrendJsonp(code) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
@@ -399,7 +418,6 @@
             });
         }
 
-        // ================== 编辑与保存 ==================
         function showEdit(idx = null) {
             document.getElementById('edit_panel').classList.add('active');
             if (idx !== null) {
