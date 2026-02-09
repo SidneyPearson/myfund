@@ -13,7 +13,6 @@
     <style>
         :root { --up: #d93025; --down: #188038; --primary: #007bff; --bg: #f4f6f8; }
         
-        /* 禁用系统级选中和长按菜单 */
         body { 
             margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; 
             -webkit-tap-highlight-color: transparent; overflow-x: hidden;
@@ -21,42 +20,30 @@
         }
         ::-webkit-scrollbar { display: none; }
 
-        /* === ⚡️ 核心动效 CSS (物理引擎) Start === */
+        /* === ⚡️ 排序动效核心 CSS Start === */
 
-        /* 1. 拖拽时的替身 (Avatar): 放大、阴影、浮起 */
+        /* 1. 正在被手指拖着的卡片 (分身) */
         .sortable-fallback { 
             opacity: 1 !important;
             background: #fff;
             border-radius: 14px;
-            /* 核心：放大 1.05 倍，且保持最高层级 */
-            transform: scale(1.05) !important; 
-            /* 核心：深邃的阴影，制造悬浮感 */
-            box-shadow: 0 15px 40px rgba(0,0,0,0.25) !important;
-            z-index: 10000 !important;
+            transform: scale(1.05); /* 放大一点，表示浮起 */
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2); /* 强烈的投影 */
+            z-index: 9999 !important;
             cursor: grabbing;
-            /* 稍微改变边框颜色，提示正在操作 */
-            border: 1px solid rgba(0,123,255,0.5);
+            border: 1px solid var(--primary); /* 蓝色边框高亮 */
         }
 
-        /* 2. 原位置的坑 (Ghost): 设为透明，让其他卡片看起来是“让位”而不是“填坑” */
+        /* 2. 原位置的“坑” (Ghost) */
+        /* 设为透明 (opacity: 0)，但保留物理空间 */
+        /* 这样当其他卡片“挤”过来时，就是挤到这个透明的坑里 */
         .sortable-ghost { 
             opacity: 0; 
         }
 
         /* 3. 隐藏原生拖拽影像 */
         .sortable-drag { opacity: 0; } 
-
-        /* 4. 回弹动画 (Rebound): 松手时的 Q 弹效果 */
-        @keyframes drop-rebound {
-            0% { transform: scale(1.05); }
-            40% { transform: scale(0.97); } /* 微微压扁 */
-            100% { transform: scale(1); }   /* 恢复正常 */
-        }
-        .animate-drop {
-            animation: drop-rebound 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 10;
-        }
-        /* === ⚡️ 核心动效 CSS End === */
+        /* === ⚡️ 排序动效核心 CSS End === */
 
         .header { background: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: flex-end; }
         .total-val { font-size: 26px; font-weight: 800; line-height: 1; }
@@ -67,13 +54,13 @@
         .card { 
             background: #fff; border-radius: 14px; padding: 16px; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
-            /* 优化：平滑过渡 */
-            transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s; 
+            /* 关键：不需要 transition: transform，因为 SortableJS 会接管 transform */
+            transition: box-shadow 0.2s, background-color 0.2s; 
             position: relative; 
-            touch-action: pan-y; /* 允许垂直滚动，但在 Sortable 接管时会被阻止 */
-            will-change: transform; /* 性能优化 */
+            touch-action: pan-y; 
+            will-change: transform;
         }
-        .card:active { background: #fcfcfc; } /* 按下时的轻微反馈 */
+        .card:active { background: #fcfcfc; }
         .card.cleared { background: #f9f9f9; opacity: 0.8; }
         
         .card-main { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
@@ -125,7 +112,7 @@
     </div>
 
     <div class="list-container" id="fund_list">
-        <div style="text-align:center; padding:50px; color:#999;">正在直连数据源...</div>
+        <div style="text-align:center; padding:50px; color:#999;">正在连接数据源...</div>
     </div>
     
     <button class="fab" onclick="showEdit()">+</button>
@@ -288,39 +275,31 @@
             });
             updateHeader(totalVal, totalProfit);
 
+            // 【核心优化】Sortable 配置
             if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(listDiv, {
-                // 1. 动效参数配置
-                delay: 350, 
-                delayOnTouchOnly: true, 
-                touchStartThreshold: 10,
-                animation: 250, // 增加动画时间，使“让位”更平滑
-                easing: "cubic-bezier(0.25, 1, 0.5, 1)", // 贝塞尔曲线，更自然的加减速
+                // 1. 动效参数
+                animation: 350, // 让位动画时长，350ms 比较平滑
+                delay: 200,     // 长按 200ms 触发
+                delayOnTouchOnly: true,
                 
-                // 2. 视觉反馈配置
-                forceFallback: true, // 强制脱离文档流
+                // 2. 核心：交换逻辑
+                swapThreshold: 0.65, // 拖动覆盖 65% 时才发生交换，防止乱跳
+                direction: 'vertical',
+                
+                // 3. 视觉反馈
+                forceFallback: true, // 强制脱离流
                 fallbackClass: 'sortable-fallback', // 浮起样式
                 ghostClass: 'sortable-ghost', // 坑位样式
-                fallbackOnBody: true, // 挂载到 body，防遮挡
+                fallbackOnBody: true, // 挂载到 body 防止遮挡
 
                 onChoose: function() {
+                    // 震动反馈
                     if (navigator.vibrate) navigator.vibrate(50);
                 },
-                
-                // 3. 核心：回弹动画逻辑
                 onEnd: function (evt) {
-                    const item = evt.item; // 此时已经是DOM中真实的元素
-                    // 添加动画类
-                    item.classList.add('animate-drop');
-                    
-                    // 动画结束后移除类，以便下次使用
-                    setTimeout(() => {
-                        item.classList.remove('animate-drop');
-                    }, 400);
-
-                    // 更新数据
-                    const dataItem = myFunds.splice(evt.oldIndex, 1)[0];
-                    myFunds.splice(evt.newIndex, 0, dataItem);
+                    const item = myFunds.splice(evt.oldIndex, 1)[0];
+                    myFunds.splice(evt.newIndex, 0, item);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
                 },
             });
