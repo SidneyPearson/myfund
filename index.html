@@ -12,7 +12,6 @@
 
     <style>
         :root { --up: #d93025; --down: #188038; --primary: #007bff; --bg: #f4f6f8; }
-        /* 禁用系统默认的长按菜单，防止长按时弹出复制/粘贴菜单 */
         body { 
             margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; 
             -webkit-tap-highlight-color: transparent; overflow-x: hidden;
@@ -26,49 +25,47 @@
         
         .list-container { padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 120px; }
         
-        /* === ⚡️ iOS 风格拖拽动效 Start === */
+        /* === ⚡️ 悬浮覆盖特效 Start === */
         
-        /* 1. 被拖拽的卡片 (浮起状态) */
+        /* 1. 浮起的卡片 (真身) */
+        /* 关键：opacity: 1 保证不透明，才能“盖住”别人 */
         .sortable-fallback { 
-            opacity: 0.95 !important;
+            opacity: 1 !important;
             background: #fff;
             border-radius: 14px;
-            /* 明显放大，稍微倾斜，模拟被手指“吸起来”的感觉 */
-            transform: scale(1.08) rotate(1deg) !important; 
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3) !important;
-            z-index: 9999 !important;
+            /* 放大并带一点点倾斜，模拟拿起的感觉 */
+            transform: scale(1.05) rotate(1deg) !important; 
+            /* 关键：巨大的扩散阴影，制造悬浮的高度感 */
+            box-shadow: 0 20px 50px rgba(0,0,0,0.35) !important;
+            /* 关键：极高的层级，确保盖住一切 */
+            z-index: 10000 !important;
             cursor: grabbing;
-            /* 加上一点边框高亮 */
-            border: 1px solid var(--primary);
+            border: 1px solid rgba(0,123,255,0.3); /* 微微的蓝边 */
         }
 
-        /* 2. 原位置的占位 (Ghost) */
+        /* 2. 原位置的坑 (幽灵) */
+        /* 把坑弄得深一点，颜色暗一点，对比更强烈 */
         .sortable-ghost { 
-            opacity: 0.3; 
-            background: #e9f2ff; 
-            border: 2px dashed #007bff; 
-            transform: scale(0.95);
+            opacity: 0.2; 
+            background: #000; 
+            border: 2px dashed #ccc; 
             border-radius: 14px;
         }
 
-        /* 3. 隐藏原生拖拽影像 */
         .sortable-drag { opacity: 0; } 
-        /* === ⚡️ iOS 风格拖拽动效 End === */
+        /* === ⚡️ 悬浮覆盖特效 End === */
 
         .card { 
             background: #fff; border-radius: 14px; padding: 16px; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
             transition: transform 0.1s, box-shadow 0.2s; 
             position: relative; 
-            /* 关键：让触摸响应更快 */
             touch-action: pan-y; 
         }
         .card:active { transform: scale(0.98); background: #fafafa; }
         .card.cleared { background: #f9f9f9; opacity: 0.8; }
         
         .card-main { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        
-        /* 移除原来的 handle 样式，不再需要了 */
         
         .card-info { flex: 1; min-width: 0; margin-right: 12px; }
         .f-name { font-size: 16px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; display: block; }
@@ -198,9 +195,7 @@
         function fetchFundJsonp(code) {
             return new Promise((resolve) => {
                 const callbackName = 'jsonpgz'; 
-                window[callbackName] = (data) => {
-                    resolve({ ...data, ok: true });
-                };
+                window[callbackName] = (data) => { resolve({ ...data, ok: true }); };
                 const script = document.createElement('script');
                 script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
                 script.onerror = () => resolve({ ok: false }); 
@@ -216,7 +211,7 @@
                 updateHeader(0, 0);
                 return;
             }
-            if(listDiv.children.length === 0 || listDiv.innerText.includes('数据源')) {
+            if(listDiv.children.length === 0 || listDiv.innerText.includes('直连')) {
                 listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在直连数据源...</div>';
             }
 
@@ -254,7 +249,6 @@
                 const clr = rate >= 0 ? 'up' : 'down';
                 const sign = rate >= 0 ? '+' : '';
                 const isCleared = share === 0;
-
                 let badge = '';
                 const buyT = parseFloat(item.buy_target_price);
                 const sellT = parseFloat(item.target_price);
@@ -283,30 +277,26 @@
             });
             updateHeader(totalVal, totalProfit);
 
-            // 【核心优化：长按拖拽配置】
             if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(listDiv, {
-                // 不再使用 handle，而是允许整个卡片拖拽
-                // 设置 delay: 350ms，实现“长按”效果
                 delay: 350, 
-                delayOnTouchOnly: true, // 只在触摸屏上启用延迟，电脑上直接拖
-                touchStartThreshold: 5, // 手指抖动容差
+                delayOnTouchOnly: true, 
+                touchStartThreshold: 5,
                 animation: 250,
                 
-                // 动效核心
-                forceFallback: true, // 强制使用模拟拖拽，为了自定义样式
-                fallbackClass: 'sortable-fallback',
-                ghostClass: 'sortable-ghost',
-                
+                // 【核心修改】悬浮覆盖的关键配置
+                forceFallback: true, // 强制使用自定义的 fallback
+                fallbackClass: 'sortable-fallback', // 定义浮起卡片的样式
+                ghostClass: 'sortable-ghost', // 定义坑位的样式
+                fallbackOnBody: true, // 关键：挂载到body，确保层级最高，不被裁切
+
                 onChoose: function() {
-                    // 选中震动 (触觉反馈)
                     if (navigator.vibrate) navigator.vibrate(50);
                 },
                 onEnd: function (evt) {
                     const item = myFunds.splice(evt.oldIndex, 1)[0];
                     myFunds.splice(evt.newIndex, 0, item);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
-                    // 这里不重新 render，保持 DOM 稳定，因为 Sortable 已经动了 DOM
                 },
             });
         }
@@ -337,7 +327,6 @@
             const fund = myFunds[idx];
             currentFund = fund;
             document.getElementById('chart_panel').classList.add('active');
-            
             const gszDisplay = fund.gsz ? `¥${fund.gsz}` : '--';
             document.getElementById('c_title').innerText = fund.name || code;
             document.getElementById('c_sub').innerText = `当前估值: ${gszDisplay} | 加载历史中...`;
