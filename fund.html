@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>基金看板 Pro - 手机增强版</title>
+    <title>基金看板 Pro - 极速版</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
@@ -11,262 +11,372 @@
 
     <style>
         :root { --up: #d93025; --down: #188038; --primary: #007bff; --bg: #f4f6f8; }
-        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; -webkit-tap-highlight-color: transparent; }
+        body { 
+            margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; 
+            -webkit-tap-highlight-color: transparent; padding-bottom: 80px; overflow-x: hidden;
+        }
+        /* 隐藏滚动条 */
+        ::-webkit-scrollbar { display: none; }
         
-        /* 顶部统计栏 */
         .header { background: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: flex-end; }
-        .total-val { font-size: 26px; font-weight: 800; }
+        .total-val { font-size: 26px; font-weight: 800; line-height: 1; }
         .profit-bar { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px; margin-top: 8px; display: inline-block; }
         
-        /* 基金列表 */
-        .list { padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 80px; }
-        .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid transparent; }
-        .card:active { background: #f0f0f0; border-color: #eee; }
+        .list-container { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+        .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.1s; }
+        .card:active { transform: scale(0.98); background: #fafafa; }
+        .card.cleared { background: #f9f9f9; opacity: 0.8; }
         .card-main { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .f-name { font-size: 16px; font-weight: bold; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .f-name { font-size: 16px; font-weight: bold; max-width: 65%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .f-rate { font-size: 22px; font-weight: bold; font-family: monospace; }
-        
-        /* 颜色类 */
+        .card-sub { display: flex; justify-content: space-between; align-items: flex-end; font-size: 13px; color: #666; padding-top: 10px; border-top: 1px solid #f5f5f5; }
+        .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 5px; vertical-align: middle; }
+
         .up { color: var(--up); } .down { color: var(--down); }
         .bg-up { background: rgba(217,48,37,0.1); color: var(--up); }
         .bg-down { background: rgba(24,128,56,0.1); color: var(--down); }
+        .border-up { border: 1px solid var(--up); } .border-down { border: 1px solid var(--down); }
 
-        /* 悬浮按钮 */
         .fab { position: fixed; bottom: 30px; right: 20px; width: 60px; height: 60px; background: var(--primary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: 0 4px 15px rgba(0,123,255,0.4); border: none; z-index: 99; }
-
-        /* 全屏面板容器 */
-        .panel { position: fixed; inset: 0; background: #fff; z-index: 1000; display: none; flex-direction: column; padding: 20px; box-sizing: border-box; overflow-y: auto; }
-        .panel.active { display: flex; }
-        .close-btn { position: absolute; top: 15px; right: 15px; font-size: 32px; color: #ccc; border: none; background: none; line-height: 1; }
         
-        /* 趋势图专用配置 */
-        .chart-container { flex: 1; min-height: 280px; position: relative; margin-top: 30px; }
-        #trendChart { touch-action: none; width: 100% !important; height: 100% !important; } 
+        .btn-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: none; background: #f5f5f5; color: #007bff; }
+
+        .panel { position: fixed; inset: 0; background: #fff; z-index: 1000; display: none; flex-direction: column; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .panel.active { display: flex; animation: slideUp 0.2s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0; }
+        .panel-title { font-size: 18px; font-weight: 800; }
+        .close-btn { width: 32px; height: 32px; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #666; border: none; }
+
+        /* 图表样式 */
+        .chart-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .chart-box { width: 100%; height: 320px; position: relative; flex-shrink: 0; }
+        .time-tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
+        .time-tab { padding: 4px 12px; border-radius: 15px; background: #f5f5f5; font-size: 12px; border: none; color: #666; }
+        .time-tab.active { background: var(--primary); color: #fff; }
 
         /* 表单样式 */
-        input { width: 100%; padding: 15px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
-        .btn-submit { background: var(--primary); color: #fff; padding: 16px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; }
-        .chart-hint { font-size: 11px; color: #bbb; text-align: center; margin-top: 10px; }
+        .form-item { margin-bottom: 12px; }
+        .form-label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; }
+        .form-input { width: 100%; padding: 12px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .btn-main { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; margin-top: 15px; }
+        .btn-del { width: 100%; padding: 14px; background: #fff; color: var(--up); border: 1px solid #eee; border-radius: 10px; font-size: 16px; font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <div>
-            <div style="font-size:12px; color:#999">持仓总估值 (元)</div>
+            <div style="font-size:12px; color:#999; margin-bottom:4px">持仓总估值</div>
             <div class="total-val" id="total_val">0.00</div>
-            <div id="total_profit" class="profit-bar">今日合计预计: --</div>
+            <div id="total_profit" class="profit-bar" style="background:#f5f5f5; color:#999">今日: --</div>
         </div>
-        <div onclick="initData()" style="font-size: 24px; padding: 10px; cursor: pointer;">🔄</div>
+        <button class="btn-icon" onclick="initData()">🔄</button>
     </div>
 
-    <div class="list" id="fund_list">
-        <div style="text-align:center; padding:50px; color:#999;">正在加载数据线路...</div>
+    <div class="list-container" id="fund_list">
+        <div style="text-align:center; padding:50px; color:#999;">正在直连交易所...</div>
     </div>
-
+    
     <button class="fab" onclick="showEdit()">+</button>
 
     <div id="edit_panel" class="panel">
-        <button class="close-btn" onclick="closePanel('edit_panel')">×</button>
-        <h2 style="margin-top:0">管理基金持仓</h2>
-        <input type="number" id="in_code" placeholder="6位基金代码 (如 012414)">
-        <input type="text" id="in_name" placeholder="备注名称 (可选)">
-        <input type="number" id="in_share" step="0.0001" placeholder="持有份额">
+        <div class="panel-header">
+            <div class="panel-title">配置基金</div>
+            <button class="close-btn" onclick="closePanel('edit_panel')">✕</button>
+        </div>
+        <div class="form-item">
+            <label class="form-label">基金代码</label>
+            <input type="number" id="in_code" class="form-input" placeholder="6位代码">
+        </div>
+        <div class="form-item">
+            <label class="form-label">备注名称</label>
+            <input type="text" id="in_name" class="form-input" placeholder="自定义名称">
+        </div>
+        <div style="display:flex; gap:10px">
+            <div class="form-item" style="flex:1">
+                <label class="form-label">持有份额</label>
+                <input type="number" id="in_share" class="form-input" placeholder="0">
+            </div>
+            <div class="form-item" style="flex:1">
+                <label class="form-label">持仓成本</label>
+                <input type="number" id="in_cost" class="form-input" placeholder="0">
+            </div>
+        </div>
+        <div style="display:flex; gap:10px">
+            <div class="form-item" style="flex:1">
+                <label class="form-label" style="color:var(--up)">🎯 止盈提醒</label>
+                <input type="number" id="in_target" class="form-input" placeholder="选填">
+            </div>
+            <div class="form-item" style="flex:1">
+                <label class="form-label" style="color:var(--down)">💰 抄底提醒</label>
+                <input type="number" id="in_buy_target" class="form-input" placeholder="选填">
+            </div>
+        </div>
         <input type="hidden" id="edit_idx">
-        <button class="btn-submit" onclick="save()">保存并更新列表</button>
-        <button id="del_btn" style="color:red; background:none; border:1px solid red; padding:12px; border-radius:10px; margin-top:20px; width:100%" onclick="remove()">删除此基金</button>
+        <button class="btn-main" onclick="save()">保存配置</button>
+        <button id="del_btn" class="btn-del" onclick="remove()">删除此基金</button>
     </div>
 
     <div id="chart_panel" class="panel">
-        <button class="close-btn" onclick="closePanel('chart_panel')">×</button>
-        <h3 id="chart_name" style="margin-bottom:0">历史趋势</h3>
-        <p id="chart_code" style="color:#999; font-size:12px; margin-top:5px"></p>
-        
-        <div class="chart-container">
-            <canvas id="trendChart"></canvas>
+        <div class="panel-header">
+            <div>
+                <div class="panel-title" id="c_title">--</div>
+                <div style="font-size:12px; color:#999" id="c_sub">--</div>
+            </div>
+            <button class="close-btn" onclick="closePanel('chart_panel')">✕</button>
         </div>
-        
-        <div class="chart-hint">💡 左右滑动平移，双指捏合缩放时间轴</div>
-        <button class="btn-submit" style="background:#f0f0f0; color:#333; margin-top:15px;" onclick="safeResetZoom()">重置视图</button>
+        <div class="chart-wrapper">
+            <div class="time-tabs" id="time_tabs">
+                <button class="time-tab" onclick="changeRange('1m')">1月</button>
+                <button class="time-tab" onclick="changeRange('3m')">3月</button>
+                <button class="time-tab" onclick="changeRange('6m')">6月</button>
+                <button class="time-tab active" onclick="changeRange('1y')">1年</button>
+                <button class="time-tab" onclick="changeRange('all')">全</button>
+            </div>
+            <div class="chart-box">
+                <canvas id="trendChart"></canvas>
+            </div>
+            <div style="text-align:center; font-size:11px; color:#bbb; margin-top:5px;">
+                🔴最高 🟢最低 ｜ 🔵成本 ┄ 目标<br>双指缩放 / 左右滑动
+            </div>
+        </div>
     </div>
 
     <script>
-        // 【核心修复：注册缩放插件】
         Chart.register(ChartZoom);
-
-        let myFunds = JSON.parse(localStorage.getItem('hentao_mobile_v4')) || [];
+        const STORAGE_KEY = 'my_fund_pro_v2';
+        let myFunds = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
         let chartInstance = null;
+        let currentChartData = [];
+        let currentFund = null;
 
-        // 【优化：智能多代理切换】
-        async function smartFetch(url) {
-            const proxies = [
-                "https://corsproxy.io/?",
-                "https://api.codetabs.com/v1/proxy?quest=",
-                "https://api.allorigins.win/raw?url="
-            ];
-            for (const proxy of proxies) {
-                try {
-                    const controller = new AbortController();
-                    const id = setTimeout(() => controller.abort(), 5000); // 5秒超时
-                    const res = await fetch(proxy + encodeURIComponent(url), { signal: controller.signal });
-                    clearTimeout(id);
-                    if (res.ok) return await res.text();
-                } catch (e) { continue; }
-            }
-            throw new Error("接口当前繁忙");
+        // 【核心修改：JSONP 获取列表数据】
+        // 彻底解决 CORS 问题，无需代理
+        function fetchFundJsonp(code) {
+            return new Promise((resolve) => {
+                const callbackName = 'jsonpgz'; 
+                // 定义全局回调，捕捉数据
+                window[callbackName] = (data) => {
+                    resolve({ ...data, ok: true });
+                };
+
+                const script = document.createElement('script');
+                script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+                script.onerror = () => resolve({ ok: false }); // 失败处理
+                
+                // 加载完成后移除脚本标签，保持 DOM 干净
+                script.onload = () => document.body.removeChild(script);
+                document.body.appendChild(script);
+            });
         }
 
-        // 初始化/刷新列表
+        // 初始化：串行加载防止回调冲突
         async function initData() {
             const listDiv = document.getElementById('fund_list');
             if (myFunds.length === 0) {
-                listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">暂无持仓<br>点击下方 + 添加基金</div>';
+                listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">暂无持仓<br>点击右下角 + 添加</div>';
+                updateHeader(0, 0);
                 return;
             }
-            listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在安全同步估值...</div>';
+            listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在直连数据源...</div>';
 
-            const tasks = myFunds.map(async f => {
-                const url = `https://fundgz.1234567.com.cn/js/${f.code}.js?rt=${Date.now()}`;
+            const results = [];
+            // 必须串行请求，因为 JSONP 回调函数名是固定的 jsonpgz
+            for (const f of myFunds) {
                 try {
-                    const text = await smartFetch(url);
-                    const match = text.match(/jsonpgz\((.*)\)/);
-                    return { ...f, ...JSON.parse(match[1]), ok: true };
-                } catch (e) { return { ...f, ok: false }; }
-            });
-
-            const results = await Promise.all(tasks);
+                    const data = await fetchFundJsonp(f.code);
+                    results.push({ ...f, ...data });
+                } catch(e) {
+                    results.push({ ...f, ok: false });
+                }
+            }
             render(results);
         }
 
-        // 渲染列表
         function render(data) {
             let totalVal = 0, totalProfit = 0;
             const listDiv = document.getElementById('fund_list');
             listDiv.innerHTML = '';
 
-            data.forEach((item, i) => {
+            const active = data.filter(i => parseFloat(i.share) > 0);
+            const cleared = data.filter(i => !parseFloat(i.share) || parseFloat(i.share) === 0);
+            const all = [...active, ...cleared];
+
+            all.forEach((item) => {
+                const realIdx = myFunds.findIndex(f => f.code === item.code);
+                
                 if (!item.ok) {
-                    listDiv.innerHTML += `<div class="card" onclick="showEdit(${i})">${item.code} 加载中... (点击编辑)</div>`;
+                    listDiv.innerHTML += `<div class="card" onclick="showEdit(${realIdx})">${item.code} 加载超时 (点击编辑)</div>`;
                     return;
                 }
-                const rate = parseFloat(item.gszzl);
-                const share = parseFloat(item.share || 0);
-                const marketVal = share * parseFloat(item.gsz);
-                const profit = share * (parseFloat(item.gsz) - parseFloat(item.dwjz));
-                totalVal += marketVal; totalProfit += profit;
 
+                const share = parseFloat(item.share || 0);
+                const gsz = parseFloat(item.gsz);
+                const marketVal = share * gsz;
+                const profitDay = share * (gsz - parseFloat(item.dwjz));
+                
+                if(share > 0) {
+                    totalVal += marketVal;
+                    totalProfit += profitDay;
+                }
+
+                const rate = parseFloat(item.gszzl);
                 const clr = rate >= 0 ? 'up' : 'down';
-                const bgClr = rate >= 0 ? 'bg-up' : 'bg-down';
+                const sign = rate >= 0 ? '+' : '';
+                const isCleared = share === 0;
+
+                let badge = '';
+                const buyT = parseFloat(item.buy_target_price);
+                const sellT = parseFloat(item.target_price);
+                
+                if (sellT > 0 && gsz >= sellT) badge += `<span class="tag bg-up border-up">🎯止盈</span>`;
+                if (buyT > 0 && gsz <= buyT) badge += `<span class="tag bg-down border-down">💰机会</span>`;
 
                 listDiv.innerHTML += `
-                    <div class="card" onclick="viewTrend('${item.code}', '${item.name}')">
+                    <div class="card ${isCleared ? 'cleared' : ''}" onclick="openChart(${realIdx}, '${item.code}')">
                         <div class="card-main">
-                            <div class="f-name">${item.name}</div>
-                            <div class="f-rate ${clr}">${rate > 0 ? '+' : ''}${item.gszzl}%</div>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; font-size:13px; color:#666">
-                            <div>估值: <span style="font-weight:bold;color:#333">${marketVal.toFixed(2)}</span></div>
-                            <div class="${bgClr} profit-bar" style="margin:0; padding:2px 6px">
-                                今日: ${(profit >= 0 ? '+' : '') + profit.toFixed(2)}
+                            <div>
+                                <div class="f-name">${item.name}</div>
+                                <div style="font-size:12px;color:#bbb">${item.code} ${isCleared ? '(已清仓)' : ''}</div>
                             </div>
+                            <div class="f-rate ${clr}">${sign}${item.gszzl}%</div>
                         </div>
-                        <div style="font-size:11px; color:#ccc; margin-top:10px" onclick="event.stopPropagation();showEdit(${i})">管理配置 ✎</div>
-                    </div>
-                `;
+                        <div class="card-sub">
+                            <div>
+                                ${badge}
+                                <span>市值: ${isCleared ? '--' : Math.round(marketVal)}</span>
+                            </div>
+                            <div>今日: <span class="${clr}">${isCleared ? '--' : (profitDay>=0?'+':'') + profitDay.toFixed(1)}</span></div>
+                            <div style="font-size:16px" onclick="event.stopPropagation();showEdit(${realIdx})">⚙</div>
+                        </div>
+                    </div>`;
             });
-            document.getElementById('total_val').innerText = totalVal.toFixed(2);
-            const pDom = document.getElementById('total_profit');
-            pDom.innerText = `今日合计预计: ${(totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2)}`;
-            pDom.className = `profit-bar ${totalProfit >= 0 ? 'bg-up' : 'bg-down'}`;
+            updateHeader(totalVal, totalProfit);
         }
 
-        // ================== 交互式趋势图核心 ==================
+        function updateHeader(val, profit) {
+            document.getElementById('total_val').innerText = val.toFixed(2);
+            const pDom = document.getElementById('total_profit');
+            pDom.innerText = `今日: ${(profit >= 0 ? '+' : '') + profit.toFixed(2)}`;
+            pDom.className = `profit-bar ${profit >= 0 ? 'bg-up' : 'bg-down'}`;
+        }
 
-        async function viewTrend(code, name) {
+        // ================== 图表逻辑 (也是 JSONP) ==================
+        function fetchTrendJsonp(code) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = `https://fund.eastmoney.com/pingzhongdata/${code}.js?t=${Date.now()}`;
+                
+                script.onload = () => {
+                    // 数据加载到了全局变量 Data_netWorthTrend
+                    if (typeof Data_netWorthTrend !== 'undefined') {
+                        resolve(Data_netWorthTrend);
+                        document.body.removeChild(script);
+                    } else {
+                        reject('No Data');
+                    }
+                };
+                script.onerror = () => reject('Load Error');
+                document.body.appendChild(script);
+            });
+        }
+
+        async function openChart(idx, code) {
+            const fund = myFunds[idx];
+            currentFund = fund;
             document.getElementById('chart_panel').classList.add('active');
-            document.getElementById('chart_name').innerText = name + " (同步中...)";
-            document.getElementById('chart_code').innerText = code;
-            
+            document.getElementById('c_title').innerText = fund.name || code;
+            document.getElementById('c_sub').innerText = `加载趋势中...`;
+
             if (chartInstance) chartInstance.destroy();
-            chartInstance = null;
 
-            // 增加缓存机制：同日不再重复请求数据
-            const cacheKey = `f_cache_${code}`;
-            const today = new Date().toLocaleDateString();
-            const cached = JSON.parse(localStorage.getItem(cacheKey));
-
-            if (cached && cached.date === today) {
-                renderChart(cached.data, name);
-                return;
-            }
+            // 缓存检查
+            const cacheKey = `chart_data_${code}`;
+            let fullData = null; // 每次重新获取保证最新，或者你可以加简单的本地缓存逻辑
 
             try {
-                const url = `https://fund.eastmoney.com/pingzhongdata/${code}.js`;
-                const rawJs = await smartFetch(url);
-                const match = rawJs.match(/var Data_netWorthTrend = (\[.*?\]);/);
-                const fullData = JSON.parse(match[1]).slice(-200); // 取最近200天数据，缩放更明显
-
-                localStorage.setItem(cacheKey, JSON.stringify({ date: today, data: fullData }));
-                renderChart(fullData, name);
+                fullData = await fetchTrendJsonp(code);
+                currentChartData = fullData;
+                document.getElementById('c_sub').innerText = `代码: ${code} | 最新净值: ${fullData[fullData.length-1].y}`;
+                changeRange('1y');
             } catch (e) {
-                document.getElementById('chart_name').innerText = "趋势加载繁忙，请重试";
+                document.getElementById('c_sub').innerText = "加载失败，请重试";
             }
         }
 
-        function renderChart(recentData, name) {
-            document.getElementById('chart_name').innerText = name;
-            const ctx = document.getElementById('trendChart').getContext('2d');
+        function changeRange(type) {
+            document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
             
+            let count = currentChartData.length;
+            if (type === '1m') count = 22;
+            if (type === '3m') count = 66;
+            if (type === '6m') count = 130;
+            if (type === '1y') count = 250;
+            
+            drawChart(currentChartData.slice(-count));
+        }
+
+        function drawChart(data) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            const labels = data.map(d => new Date(d.x).toLocaleDateString('zh-CN', {month:'numeric', day:'numeric'}));
+            const values = data.map(d => d.y);
+            const maxVal = Math.max(...values);
+            const minVal = Math.min(...values);
+            
+            // 辅助线
+            const cost = parseFloat(currentFund.cost) || 0;
+            const target = parseFloat(currentFund.target_price) || 0;
+            const buyT = parseFloat(currentFund.buy_target_price) || 0;
+
+            const datasets = [{
+                data: values,
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0,123,255,0.05)',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.1
+            }, {
+                type: 'line',
+                data: values.map(v => (v === maxVal || v === minVal) ? v : null),
+                pointRadius: 5,
+                pointBackgroundColor: ctx => ctx.raw === maxVal ? '#d93025' : '#188038',
+                borderWidth: 0,
+                showLine: false
+            }];
+
+            if(cost>0) datasets.push({ data: Array(values.length).fill(cost), borderColor:'rgba(0,123,255,0.5)', borderDash:[5,5], borderWidth:1, pointRadius:0 });
+            if(target>0) datasets.push({ data: Array(values.length).fill(target), borderColor:'rgba(217,48,37,0.8)', borderDash:[5,2], borderWidth:1, pointRadius:0 });
+            if(buyT>0) datasets.push({ data: Array(values.length).fill(buyT), borderColor:'rgba(24,128,56,0.8)', borderDash:[5,2], borderWidth:1, pointRadius:0 });
+
             chartInstance = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: recentData.map(d => new Date(d.x).toLocaleDateString('zh-CN', {month:'numeric', day:'numeric'})),
-                    datasets: [{
-                        data: recentData.map(d => d.y),
-                        borderColor: '#007bff',
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0.1,
-                        fill: false
-                    }]
-                },
+                data: { labels, datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        zoom: {
-                            pan: { enabled: true, mode: 'x', threshold: 5 },
-                            zoom: {
-                                pinch: { enabled: true }, // 开启捏合缩放
-                                wheel: { enabled: true },
-                                mode: 'x'
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { autoSkip: true, maxRotation: 0 } },
-                        y: { position: 'right', grid: { color: '#f0f0f0' } }
-                    }
+                    plugins: { legend: { display: false }, zoom: { pan: {enabled:true, mode:'x'}, zoom: {wheel:{enabled:true}, pinch:{enabled:true}, mode:'x'} } },
+                    scales: { x: {grid:{display:false}, ticks:{maxTicksLimit:5}}, y: {position:'right'} }
                 }
             });
         }
 
-        // 【修复：安全重置视图】
-        function safeResetZoom() {
-            if (chartInstance) chartInstance.resetZoom();
-        }
-
-        // ================== 面板与数据存储逻辑 ==================
-
+        // ================== 编辑与保存 ==================
         function showEdit(idx = null) {
-            const p = document.getElementById('edit_panel');
-            p.classList.add('active');
+            document.getElementById('edit_panel').classList.add('active');
             if (idx !== null) {
                 const f = myFunds[idx];
                 document.getElementById('in_code').value = f.code;
                 document.getElementById('in_name').value = f.name || '';
                 document.getElementById('in_share').value = f.share || '';
+                document.getElementById('in_cost').value = f.cost || '';
+                document.getElementById('in_target').value = f.target_price || '';
+                document.getElementById('in_buy_target').value = f.buy_target_price || '';
                 document.getElementById('edit_idx').value = idx;
                 document.getElementById('del_btn').style.display = 'block';
             } else {
@@ -275,38 +385,32 @@
                 document.getElementById('del_btn').style.display = 'none';
             }
         }
-
         function closePanel(id) { document.getElementById(id).classList.remove('active'); }
-
         function save() {
-            const code = document.getElementById('in_code').value.trim();
-            const name = document.getElementById('in_name').value.trim();
-            const share = document.getElementById('in_share').value.trim();
+            const code = document.getElementById('in_code').value;
+            if(!code) return alert('请输入代码');
+            const obj = {
+                code,
+                name: document.getElementById('in_name').value,
+                share: parseFloat(document.getElementById('in_share').value) || 0,
+                cost: parseFloat(document.getElementById('in_cost').value) || 0,
+                target_price: parseFloat(document.getElementById('in_target').value) || 0,
+                buy_target_price: parseFloat(document.getElementById('in_buy_target').value) || 0,
+            };
             const idx = document.getElementById('edit_idx').value;
-
-            if (code.length < 6) return alert("请输入6位基金代码");
-            
-            const obj = { code, name: name || code, share: parseFloat(share) || 0 };
-            
-            if (idx === "") myFunds.push(obj);
-            else myFunds[idx] = obj;
-
-            localStorage.setItem('hentao_mobile_v4', JSON.stringify(myFunds));
+            if (idx === "") myFunds.push(obj); else myFunds[idx] = obj;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
             closePanel('edit_panel');
             initData();
         }
-
         function remove() {
-            const idx = document.getElementById('edit_idx').value;
-            if (confirm('确定要删除这条持仓记录吗？')) {
-                myFunds.splice(idx, 1);
-                localStorage.setItem('hentao_mobile_v4', JSON.stringify(myFunds));
+            if(confirm('删除此基金？')) {
+                myFunds.splice(document.getElementById('edit_idx').value, 1);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
                 closePanel('edit_panel');
                 initData();
             }
         }
-
-        // 启动！
         initData();
     </script>
 </body>
