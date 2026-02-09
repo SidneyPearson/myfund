@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>基金看板 Pro - 极速版</title>
+    <title>基金看板 Pro - 移动增强版</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
@@ -13,16 +13,18 @@
         :root { --up: #d93025; --down: #188038; --primary: #007bff; --bg: #f4f6f8; }
         body { 
             margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; 
-            -webkit-tap-highlight-color: transparent; padding-bottom: 80px; overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent; overflow-x: hidden;
+            /* 移除 body padding，改用 list-container 控制底部间距 */
         }
-        /* 隐藏滚动条 */
         ::-webkit-scrollbar { display: none; }
         
         .header { background: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: flex-end; }
         .total-val { font-size: 26px; font-weight: 800; line-height: 1; }
         .profit-bar { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px; margin-top: 8px; display: inline-block; }
         
-        .list-container { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+        /* 修复：底部增加大量 padding，防止被悬浮按钮遮挡 */
+        .list-container { padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 120px; }
+        
         .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.1s; }
         .card:active { transform: scale(0.98); background: #fafafa; }
         .card.cleared { background: #f9f9f9; opacity: 0.8; }
@@ -49,14 +51,12 @@
         .panel-title { font-size: 18px; font-weight: 800; }
         .close-btn { width: 32px; height: 32px; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #666; border: none; }
 
-        /* 图表样式 */
         .chart-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         .chart-box { width: 100%; height: 320px; position: relative; flex-shrink: 0; }
         .time-tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
         .time-tab { padding: 4px 12px; border-radius: 15px; background: #f5f5f5; font-size: 12px; border: none; color: #666; }
         .time-tab.active { background: var(--primary); color: #fff; }
 
-        /* 表单样式 */
         .form-item { margin-bottom: 12px; }
         .form-label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; }
         .form-input { width: 100%; padding: 12px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
@@ -76,7 +76,7 @@
     </div>
 
     <div class="list-container" id="fund_list">
-        <div style="text-align:center; padding:50px; color:#999;">正在直连交易所...</div>
+        <div style="text-align:center; padding:50px; color:#999;">正在直连数据源...</div>
     </div>
     
     <button class="fab" onclick="showEdit()">+</button>
@@ -139,7 +139,7 @@
                 <canvas id="trendChart"></canvas>
             </div>
             <div style="text-align:center; font-size:11px; color:#bbb; margin-top:5px;">
-                🔴最高 🟢最低 ｜ 🔵成本 ┄ 目标<br>双指缩放 / 左右滑动
+                🔴最高 🟢最低 ｜ 🟣当前估值 ┄ 目标
             </div>
         </div>
     </div>
@@ -152,27 +152,21 @@
         let currentChartData = [];
         let currentFund = null;
 
-        // 【核心修改：JSONP 获取列表数据】
-        // 彻底解决 CORS 问题，无需代理
+        // JSONP Core
         function fetchFundJsonp(code) {
             return new Promise((resolve) => {
                 const callbackName = 'jsonpgz'; 
-                // 定义全局回调，捕捉数据
                 window[callbackName] = (data) => {
                     resolve({ ...data, ok: true });
                 };
-
                 const script = document.createElement('script');
                 script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
-                script.onerror = () => resolve({ ok: false }); // 失败处理
-                
-                // 加载完成后移除脚本标签，保持 DOM 干净
+                script.onerror = () => resolve({ ok: false }); 
                 script.onload = () => document.body.removeChild(script);
                 document.body.appendChild(script);
             });
         }
 
-        // 初始化：串行加载防止回调冲突
         async function initData() {
             const listDiv = document.getElementById('fund_list');
             if (myFunds.length === 0) {
@@ -183,7 +177,6 @@
             listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在直连数据源...</div>';
 
             const results = [];
-            // 必须串行请求，因为 JSONP 回调函数名是固定的 jsonpgz
             for (const f of myFunds) {
                 try {
                     const data = await fetchFundJsonp(f.code);
@@ -192,6 +185,8 @@
                     results.push({ ...f, ok: false });
                 }
             }
+            // 更新内存中的数据，确保 gsz 是最新的
+            myFunds = results; 
             render(results);
         }
 
@@ -213,7 +208,7 @@
                 }
 
                 const share = parseFloat(item.share || 0);
-                const gsz = parseFloat(item.gsz);
+                const gsz = parseFloat(item.gsz); // 今日实时估值
                 const marketVal = share * gsz;
                 const profitDay = share * (gsz - parseFloat(item.dwjz));
                 
@@ -227,6 +222,8 @@
                 const sign = rate >= 0 ? '+' : '';
                 const isCleared = share === 0;
 
+                // === 提醒逻辑升级 ===
+                // 基于实时估值 gsz 计算
                 let badge = '';
                 const buyT = parseFloat(item.buy_target_price);
                 const sellT = parseFloat(item.target_price);
@@ -249,7 +246,7 @@
                                 <span>市值: ${isCleared ? '--' : Math.round(marketVal)}</span>
                             </div>
                             <div>今日: <span class="${clr}">${isCleared ? '--' : (profitDay>=0?'+':'') + profitDay.toFixed(1)}</span></div>
-                            <div style="font-size:16px" onclick="event.stopPropagation();showEdit(${realIdx})">⚙</div>
+                            <div style="font-size:16px; padding:0 5px;" onclick="event.stopPropagation();showEdit(${realIdx})">⚙</div>
                         </div>
                     </div>`;
             });
@@ -263,20 +260,16 @@
             pDom.className = `profit-bar ${profit >= 0 ? 'bg-up' : 'bg-down'}`;
         }
 
-        // ================== 图表逻辑 (也是 JSONP) ==================
+        // ================== 图表逻辑 ==================
         function fetchTrendJsonp(code) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = `https://fund.eastmoney.com/pingzhongdata/${code}.js?t=${Date.now()}`;
-                
                 script.onload = () => {
-                    // 数据加载到了全局变量 Data_netWorthTrend
                     if (typeof Data_netWorthTrend !== 'undefined') {
                         resolve(Data_netWorthTrend);
                         document.body.removeChild(script);
-                    } else {
-                        reject('No Data');
-                    }
+                    } else { reject('No Data'); }
                 };
                 script.onerror = () => reject('Load Error');
                 document.body.appendChild(script);
@@ -284,22 +277,25 @@
         }
 
         async function openChart(idx, code) {
+            // 获取最新内存中的 fund 对象，确保包含最新的 gsz
             const fund = myFunds[idx];
             currentFund = fund;
+            
             document.getElementById('chart_panel').classList.add('active');
+            
+            const gszDisplay = fund.gsz ? `¥${fund.gsz}` : '--';
             document.getElementById('c_title').innerText = fund.name || code;
-            document.getElementById('c_sub').innerText = `加载趋势中...`;
+            document.getElementById('c_sub').innerText = `当前估值: ${gszDisplay} | 加载历史中...`;
 
             if (chartInstance) chartInstance.destroy();
 
-            // 缓存检查
-            const cacheKey = `chart_data_${code}`;
-            let fullData = null; // 每次重新获取保证最新，或者你可以加简单的本地缓存逻辑
-
             try {
-                fullData = await fetchTrendJsonp(code);
+                // 不使用缓存，每次加载最新
+                const fullData = await fetchTrendJsonp(code);
                 currentChartData = fullData;
-                document.getElementById('c_sub').innerText = `代码: ${code} | 最新净值: ${fullData[fullData.length-1].y}`;
+                
+                const lastNet = fullData[fullData.length-1].y;
+                document.getElementById('c_sub').innerText = `估值: ${gszDisplay} | 净值: ${lastNet}`;
                 changeRange('1y');
             } catch (e) {
                 document.getElementById('c_sub').innerText = "加载失败，请重试";
@@ -328,10 +324,11 @@
             const maxVal = Math.max(...values);
             const minVal = Math.min(...values);
             
-            // 辅助线
+            // 辅助线数据
             const cost = parseFloat(currentFund.cost) || 0;
             const target = parseFloat(currentFund.target_price) || 0;
             const buyT = parseFloat(currentFund.buy_target_price) || 0;
+            const currentEst = parseFloat(currentFund.gsz) || 0;
 
             const datasets = [{
                 data: values,
@@ -350,9 +347,20 @@
                 showLine: false
             }];
 
-            if(cost>0) datasets.push({ data: Array(values.length).fill(cost), borderColor:'rgba(0,123,255,0.5)', borderDash:[5,5], borderWidth:1, pointRadius:0 });
-            if(target>0) datasets.push({ data: Array(values.length).fill(target), borderColor:'rgba(217,48,37,0.8)', borderDash:[5,2], borderWidth:1, pointRadius:0 });
-            if(buyT>0) datasets.push({ data: Array(values.length).fill(buyT), borderColor:'rgba(24,128,56,0.8)', borderDash:[5,2], borderWidth:1, pointRadius:0 });
+            if(cost>0) datasets.push({ label:'成本', data: Array(values.length).fill(cost), borderColor:'rgba(0,123,255,0.5)', borderDash:[5,5], borderWidth:1, pointRadius:0 });
+            if(target>0) datasets.push({ label:'止盈', data: Array(values.length).fill(target), borderColor:'rgba(217,48,37,0.8)', borderDash:[5,2], borderWidth:1, pointRadius:0 });
+            if(buyT>0) datasets.push({ label:'买入', data: Array(values.length).fill(buyT), borderColor:'rgba(24,128,56,0.8)', borderDash:[5,2], borderWidth:1, pointRadius:0 });
+            
+            // 【新增】实时估值线 (紫色)
+            if(currentEst>0) datasets.push({ 
+                label:'当前', 
+                data: Array(values.length).fill(currentEst), 
+                borderColor:'#6f42c1', 
+                borderWidth:1.5, 
+                borderDash:[8,4], 
+                pointRadius:0,
+                order: -1
+            });
 
             chartInstance = new Chart(ctx, {
                 type: 'line',
