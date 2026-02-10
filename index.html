@@ -11,7 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
     <style>
-        :root { --up: #d93025; --down: #188038; --flat: #666; --primary: #007bff; --bg: #f4f6f8; }
+        :root { --up: #d93025; --down: #188038; --flat: #999; --primary: #007bff; --bg: #f4f6f8; }
         
         body { 
             margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; 
@@ -20,21 +20,22 @@
         }
         ::-webkit-scrollbar { display: none; }
 
-        /* === ⚡️ 动效 & 颜色 CSS Start === */
-        
-        /* 颜色定义 */
+        /* === 🎨 颜色系统修复 === */
+        /* 涨 (红) */
         .up { color: var(--up); font-weight: bold; } 
-        .down { color: var(--down); font-weight: bold; }
-        .flat { color: var(--flat); font-weight: bold; } /* 新增：0收益为灰色 */
-
         .bg-up { background: rgba(217,48,37,0.1); color: var(--up); }
-        .bg-down { background: rgba(24,128,56,0.1); color: var(--down); }
-        .bg-flat { background: #f0f0f0; color: #666; }
-
         .border-up { border: 1px solid var(--up); } 
+
+        /* 跌 (绿) */
+        .down { color: var(--down); font-weight: bold; }
+        .bg-down { background: rgba(24,128,56,0.1); color: var(--down); }
         .border-down { border: 1px solid var(--down); }
 
-        /* 拖拽动效 */
+        /* 平 (灰) - 修复顶部灰色问题 */
+        .flat { color: var(--flat); font-weight: bold; }
+        .bg-flat { background: #f5f5f5; color: var(--flat); }
+
+        /* === ⚡️ 拖拽动效 === */
         .sortable-fallback { 
             opacity: 1 !important;
             background: #fff;
@@ -53,7 +54,6 @@
             100% { transform: scale(1); }
         }
         .animate-drop { animation: drop-rebound 0.3s ease-out; }
-        /* === ⚡️ 动效 & 颜色 CSS End === */
 
         .header { background: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: flex-end; }
         .total-val { font-size: 26px; font-weight: 800; line-height: 1; }
@@ -108,7 +108,7 @@
         <div>
             <div style="font-size:12px; color:#999; margin-bottom:4px">持仓总估值</div>
             <div class="total-val" id="total_val">0.00</div>
-            <div id="total_profit" class="profit-bar" style="background:#f5f5f5; color:#999">今日: --</div>
+            <div id="total_profit" class="profit-bar bg-flat">今日: --</div>
         </div>
         <button class="btn-icon" onclick="initData()">🔄</button>
     </div>
@@ -245,13 +245,10 @@
 
                 const ok = item.ok;
                 const rate = parseFloat(item.gszzl || 0);
-                
-                // 涨跌幅颜色
                 const rateClr = rate > 0 ? 'up' : (rate < 0 ? 'down' : 'flat');
-                
-                // 【核心修改】今日盈亏颜色逻辑：直接判断 profitDay
+                // 今日收益颜色：根据金额正负决定
                 const profitClr = profitDay > 0 ? 'up' : (profitDay < 0 ? 'down' : 'flat');
-
+                
                 const sign = rate >= 0 ? '+' : '';
                 const isCleared = share === 0;
 
@@ -285,16 +282,9 @@
 
             if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(listDiv, {
-                animation: 350, 
-                delay: 200,     
-                delayOnTouchOnly: true,
-                swapThreshold: 0.65, 
-                direction: 'vertical',
-                forceFallback: true, 
-                fallbackClass: 'sortable-fallback', 
-                ghostClass: 'sortable-ghost', 
-                fallbackOnBody: true, 
-                gpuAcceleration: false,
+                animation: 350, delay: 200, delayOnTouchOnly: true, swapThreshold: 0.65, direction: 'vertical',
+                forceFallback: true, fallbackClass: 'sortable-fallback', ghostClass: 'sortable-ghost', 
+                fallbackOnBody: true, gpuAcceleration: false,
                 onChoose: function() { if (navigator.vibrate) navigator.vibrate(50); },
                 onEnd: function (evt) {
                     const item = evt.item;
@@ -307,14 +297,24 @@
             });
         }
 
+        // 【核心修复】顶部状态栏颜色
         function updateHeader(val, profit) {
             document.getElementById('total_val').innerText = val.toFixed(2);
             const pDom = document.getElementById('total_profit');
-            pDom.innerText = `今日: ${(profit >= 0 ? '+' : '') + profit.toFixed(2)}`;
-            // 顶部也增加 flat 灰色逻辑
-            if (profit > 0) pDom.className = `profit-bar bg-up`;
-            else if (profit < 0) pDom.className = `profit-bar bg-down`;
-            else pDom.className = `profit-bar bg-flat`;
+            
+            // 符号逻辑
+            const sign = profit > 0 ? '+' : '';
+            pDom.innerText = `今日: ${sign}${profit.toFixed(2)}`;
+            
+            // 颜色逻辑 (使用 class，因为HTML里的 inline style 已移除)
+            // 避免 -0.00 显示为绿色的尴尬，判断绝对值
+            if (Math.abs(profit) < 0.01) {
+                pDom.className = 'profit-bar bg-flat';
+            } else if (profit > 0) {
+                pDom.className = 'profit-bar bg-up';
+            } else {
+                pDom.className = 'profit-bar bg-down';
+            }
         }
 
         function fetchTrendJsonp(code) {
