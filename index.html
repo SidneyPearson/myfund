@@ -11,7 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
     <style>
-        :root { --up: #d93025; --down: #188038; --primary: #007bff; --bg: #f4f6f8; }
+        :root { --up: #d93025; --down: #188038; --flat: #666; --primary: #007bff; --bg: #f4f6f8; }
         
         body { 
             margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: #333; 
@@ -20,39 +20,40 @@
         }
         ::-webkit-scrollbar { display: none; }
 
-        /* === ⚡️ 修复后的动效 CSS Start === */
+        /* === ⚡️ 动效 & 颜色 CSS Start === */
+        
+        /* 颜色定义 */
+        .up { color: var(--up); font-weight: bold; } 
+        .down { color: var(--down); font-weight: bold; }
+        .flat { color: var(--flat); font-weight: bold; } /* 新增：0收益为灰色 */
 
-        /* 1. 拖拽时的替身 (Avatar) */
+        .bg-up { background: rgba(217,48,37,0.1); color: var(--up); }
+        .bg-down { background: rgba(24,128,56,0.1); color: var(--down); }
+        .bg-flat { background: #f0f0f0; color: #666; }
+
+        .border-up { border: 1px solid var(--up); } 
+        .border-down { border: 1px solid var(--down); }
+
+        /* 拖拽动效 */
         .sortable-fallback { 
             opacity: 1 !important;
             background: #fff;
             border-radius: 14px;
-            /* 关键修复：移除了 !important，配合 gpuAcceleration: false 使用 */
             transform: scale(1.05) rotate(1deg); 
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3); /* 深阴影，制造悬浮感 */
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
             z-index: 10000 !important;
             cursor: grabbing;
             border: 1px solid var(--primary);
         }
-
-        /* 2. 原位置的坑 (Ghost) */
-        .sortable-ghost { 
-            opacity: 0; /* 透明坑位，实现“挤占”效果 */
-        }
-
-        /* 3. 隐藏原生影像 */
+        .sortable-ghost { opacity: 0; }
         .sortable-drag { opacity: 0; } 
-
-        /* 4. 回弹动画 */
         @keyframes drop-rebound {
             0% { transform: scale(1.05); }
             50% { transform: scale(0.98); }
             100% { transform: scale(1); }
         }
-        .animate-drop {
-            animation: drop-rebound 0.3s ease-out;
-        }
-        /* === ⚡️ 修复后的动效 CSS End === */
+        .animate-drop { animation: drop-rebound 0.3s ease-out; }
+        /* === ⚡️ 动效 & 颜色 CSS End === */
 
         .header { background: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: flex-end; }
         .total-val { font-size: 26px; font-weight: 800; line-height: 1; }
@@ -63,11 +64,8 @@
         .card { 
             background: #fff; border-radius: 14px; padding: 16px; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
-            /* 优化：只对非位置属性做 transition，防止拖拽卡顿 */
             transition: box-shadow 0.2s, background-color 0.2s; 
-            position: relative; 
-            touch-action: pan-y; 
-            will-change: transform;
+            position: relative; touch-action: pan-y; will-change: transform;
         }
         .card:active { background: #fcfcfc; }
         .card.cleared { background: #f9f9f9; opacity: 0.8; }
@@ -79,11 +77,6 @@
 
         .card-sub { display: flex; justify-content: space-between; align-items: flex-end; font-size: 13px; color: #666; padding-top: 10px; border-top: 1px solid #f5f5f5; }
         .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 5px; vertical-align: middle; }
-
-        .up { color: var(--up); } .down { color: var(--down); }
-        .bg-up { background: rgba(217,48,37,0.1); color: var(--up); }
-        .bg-down { background: rgba(24,128,56,0.1); color: var(--down); }
-        .border-up { border: 1px solid var(--up); } .border-down { border: 1px solid var(--down); }
 
         .fab { position: fixed; bottom: 30px; right: 20px; width: 60px; height: 60px; background: var(--primary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: 0 4px 15px rgba(0,123,255,0.4); border: none; z-index: 99; }
         .btn-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: none; background: #f5f5f5; color: #007bff; }
@@ -115,13 +108,13 @@
         <div>
             <div style="font-size:12px; color:#999; margin-bottom:4px">持仓总估值</div>
             <div class="total-val" id="total_val">0.00</div>
-            <div id="total_profit" class="profit-bar" style="background:#f5f5f5; color:#d90a0a">今日: --</div>
+            <div id="total_profit" class="profit-bar" style="background:#f5f5f5; color:#999">今日: --</div>
         </div>
         <button class="btn-icon" onclick="initData()">🔄</button>
     </div>
 
     <div class="list-container" id="fund_list">
-        <div style="text-align:center; padding:50px; color:#999;">正在连接数据源...</div>
+        <div style="text-align:center; padding:50px; color:#999;">正在直连数据源...</div>
     </div>
     
     <button class="fab" onclick="showEdit()">+</button>
@@ -252,9 +245,16 @@
 
                 const ok = item.ok;
                 const rate = parseFloat(item.gszzl || 0);
-                const clr = rate >= 0 ? 'up' : 'down';
+                
+                // 涨跌幅颜色
+                const rateClr = rate > 0 ? 'up' : (rate < 0 ? 'down' : 'flat');
+                
+                // 【核心修改】今日盈亏颜色逻辑：直接判断 profitDay
+                const profitClr = profitDay > 0 ? 'up' : (profitDay < 0 ? 'down' : 'flat');
+
                 const sign = rate >= 0 ? '+' : '';
                 const isCleared = share === 0;
+
                 let badge = '';
                 const buyT = parseFloat(item.buy_target_price);
                 const sellT = parseFloat(item.target_price);
@@ -268,14 +268,14 @@
                                 <div class="f-name">${item.name || item.code}</div>
                                 <div style="font-size:12px;color:#bbb">${item.code} ${isCleared ? '(已清仓)' : ''}</div>
                             </div>
-                            <div class="f-rate ${clr}">${ok ? sign + item.gszzl + '%' : '--'}</div>
+                            <div class="f-rate ${rateClr}">${ok ? sign + item.gszzl + '%' : '--'}</div>
                         </div>
                         <div class="card-sub">
                             <div>
                                 ${badge}
                                 <span>市值: ${isCleared ? '--' : Math.round(marketVal)}</span>
                             </div>
-                            <div>今日: <span class="${clr}">${isCleared ? '--' : (profitDay>=0?'+':'') + profitDay.toFixed(1)}</span></div>
+                            <div>今日: <span class="${profitClr}">${isCleared ? '--' : (profitDay>=0?'+':'') + profitDay.toFixed(1)}</span></div>
                             <div style="font-size:16px; padding:0 5px;" onclick="event.stopPropagation();showEdit(${index})">⚙</div>
                         </div>
                     </div>`;
@@ -285,31 +285,21 @@
 
             if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(listDiv, {
-                // 1. 动效参数
                 animation: 350, 
                 delay: 200,     
                 delayOnTouchOnly: true,
                 swapThreshold: 0.65, 
                 direction: 'vertical',
-                
-                // 2. 【核心修复】关键配置
                 forceFallback: true, 
                 fallbackClass: 'sortable-fallback', 
                 ghostClass: 'sortable-ghost', 
                 fallbackOnBody: true, 
-                
-                // 【核心修复】：禁用 GPU 加速，让 Sortable 使用 top/left 定位
-                // 这样 CSS 里的 transform: scale() 才能生效，卡片才会跟着手指动
                 gpuAcceleration: false,
-
-                onChoose: function() {
-                    if (navigator.vibrate) navigator.vibrate(50);
-                },
+                onChoose: function() { if (navigator.vibrate) navigator.vibrate(50); },
                 onEnd: function (evt) {
                     const item = evt.item;
                     item.classList.add('animate-drop');
                     setTimeout(() => { item.classList.remove('animate-drop'); }, 300);
-
                     const dataItem = myFunds.splice(evt.oldIndex, 1)[0];
                     myFunds.splice(evt.newIndex, 0, dataItem);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(myFunds));
@@ -321,7 +311,10 @@
             document.getElementById('total_val').innerText = val.toFixed(2);
             const pDom = document.getElementById('total_profit');
             pDom.innerText = `今日: ${(profit >= 0 ? '+' : '') + profit.toFixed(2)}`;
-            pDom.className = `profit-bar ${profit >= 0 ? 'bg-up' : 'bg-down'}`;
+            // 顶部也增加 flat 灰色逻辑
+            if (profit > 0) pDom.className = `profit-bar bg-up`;
+            else if (profit < 0) pDom.className = `profit-bar bg-down`;
+            else pDom.className = `profit-bar bg-flat`;
         }
 
         function fetchTrendJsonp(code) {
