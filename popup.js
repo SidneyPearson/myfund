@@ -60,14 +60,30 @@ function applyBatchResult(resp) {
         myFunds = myFunds.map(f => {
             const api = apiMap[f.code];
             if (!api) return { ...f, ok: false };
+            const gszVal = api.GSZ;
+            const navVal = api.NAV;
+            const navchg = api.NAVCHGRT;
+            // 主动型基金无盘中估值：用净值做 gsz，反推昨日净值做 dwjz
+            let gszStr = '', dwjzStr = '';
+            if (gszVal !== null) {
+                gszStr = String(gszVal);
+                dwjzStr = navVal !== null ? String(navVal) : '';
+            } else if (navVal !== null) {
+                gszStr = String(navVal);
+                if (navchg !== null && navchg !== 0) {
+                    dwjzStr = String(navVal / (1 + navchg / 100));
+                } else {
+                    dwjzStr = String(navVal);
+                }
+            }
             return {
                 ...f, ok: true,
                 name: f.name || api.SHORTNAME || '',
                 fundcode: f.code,
-                gsz: api.GSZ !== null ? String(api.GSZ) : (api.NAV !== null ? String(api.NAV) : ''),
-                gszzl: api.GSZZL !== null ? String(api.GSZZL) : (api.NAVCHGRT !== null ? String(api.NAVCHGRT) : ''),
+                gsz: gszStr,
+                gszzl: gszVal !== null ? String(api.GSZZL) : (navchg !== null ? String(navchg) : ''),
                 gztime: api.GZTIME || '',
-                dwjz: api.NAV !== null ? String(api.NAV) : '',
+                dwjz: dwjzStr,
                 jzrq: api.PDATE || ''
             };
         });

@@ -191,6 +191,28 @@
         let currentFund = null;
         let sortableInstance = null;
 
+        function mapFund(f, api) {
+            const gszVal = api.GSZ;
+            const navVal = api.NAV;
+            const navchg = api.NAVCHGRT;
+            let gszStr = '', dwjzStr = '';
+            if (gszVal !== null) {
+                gszStr = String(gszVal);
+                dwjzStr = navVal !== null ? String(navVal) : '';
+            } else if (navVal !== null) {
+                gszStr = String(navVal);
+                dwjzStr = (navchg !== null && navchg !== 0) ? String(navVal / (1 + navchg / 100)) : String(navVal);
+            }
+            return {
+                ...f, ok: true,
+                name: f.name || api.SHORTNAME || '',
+                gsz: gszStr,
+                gszzl: gszVal !== null ? String(api.GSZZL) : (navchg !== null ? String(navchg) : ''),
+                dwjz: dwjzStr,
+                jzrq: api.PDATE || ''
+            };
+        }
+
         async function fetchAllFunds() {
             if (myFunds.length === 0) return [];
             const codes = myFunds.map(f => f.code).join(',');
@@ -201,21 +223,9 @@
                 if (json.success && json.data) {
                     const map = {};
                     json.data.forEach(r => { map[r.FCODE] = r; });
-                    return myFunds.map(f => {
-                        const api = map[f.code];
-                        if (!api) return { ...f, ok: false };
-                        return {
-                            ...f, ok: true,
-                            name: f.name || api.SHORTNAME || '',
-                            gsz: api.GSZ !== null ? String(api.GSZ) : (api.NAV !== null ? String(api.NAV) : ''),
-                            gszzl: api.GSZZL !== null ? String(api.GSZZL) : (api.NAVCHGRT !== null ? String(api.NAVCHGRT) : ''),
-                            dwjz: api.NAV !== null ? String(api.NAV) : '',
-                            jzrq: api.PDATE || ''
-                        };
-                    });
+                    return myFunds.map(f => map[f.code] ? mapFund(f, map[f.code]) : { ...f, ok: false });
                 }
             } catch(e) {
-                // fallback: try eastmoney domain
                 try {
                     const url2 = `https://fundcomapi.eastmoney.com/mm/newCore/FundValuationLast?FCODES=${codes}&FIELDS=FCODE,SHORTNAME,GSZ,GSZZL,NAV,PDATE,NAVCHGRT&t=${Date.now()}`;
                     const resp2 = await fetch(url2);
@@ -223,18 +233,7 @@
                     if (json2.success && json2.data) {
                         const map = {};
                         json2.data.forEach(r => { map[r.FCODE] = r; });
-                        return myFunds.map(f => {
-                            const api = map[f.code];
-                            if (!api) return { ...f, ok: false };
-                            return {
-                                ...f, ok: true,
-                                name: f.name || api.SHORTNAME || '',
-                                gsz: api.GSZ !== null ? String(api.GSZ) : (api.NAV !== null ? String(api.NAV) : ''),
-                                gszzl: api.GSZZL !== null ? String(api.GSZZL) : (api.NAVCHGRT !== null ? String(api.NAVCHGRT) : ''),
-                                dwjz: api.NAV !== null ? String(api.NAV) : '',
-                                jzrq: api.PDATE || ''
-                            };
-                        });
+                        return myFunds.map(f => map[f.code] ? mapFund(f, map[f.code]) : { ...f, ok: false });
                     }
                 } catch(e2) {}
             }
