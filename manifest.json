@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "基金持仓看板 (Pro版)",
+  "version": "2.1",
+  "description": "查看实时估值、持仓盈亏及历史走势",
+  "permissions": [
+    "storage"
+  ],
+ "host_permissions": [
+    "https://fundcomapi.tiantianfunds.com/*",
+    "https://fundcomapi.eastmoney.com/*",
+    "http://fund.eastmoney.com/*",
+    "https://fund.eastmoney.com/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; connect-src https://fundcomapi.tiantianfunds.com https://fundcomapi.eastmoney.com https://fund.eastmoney.com http://fund.eastmoney.com; object-src 'self'"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  }
+}
