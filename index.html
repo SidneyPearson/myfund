@@ -191,16 +191,54 @@
         let currentFund = null;
         let sortableInstance = null;
 
-        function fetchFundJsonp(code) {
-            return new Promise((resolve) => {
-                const callbackName = 'jsonpgz'; 
-                window[callbackName] = (data) => { resolve({ ...data, ok: true }); };
-                const script = document.createElement('script');
-                script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
-                script.onerror = () => resolve({ ok: false }); 
-                script.onload = () => document.body.removeChild(script);
-                document.body.appendChild(script);
-            });
+        async function fetchAllFunds() {
+            if (myFunds.length === 0) return [];
+            const codes = myFunds.map(f => f.code).join(',');
+            const url = `https://fundcomapi.tiantianfunds.com/mm/newCore/FundValuationLast?FCODES=${codes}&FIELDS=FCODE,SHORTNAME,GSZ,GSZZL,NAV,PDATE,NAVCHGRT&t=${Date.now()}`;
+            try {
+                const resp = await fetch(url);
+                const json = await resp.json();
+                if (json.success && json.data) {
+                    const map = {};
+                    json.data.forEach(r => { map[r.FCODE] = r; });
+                    return myFunds.map(f => {
+                        const api = map[f.code];
+                        if (!api) return { ...f, ok: false };
+                        return {
+                            ...f, ok: true,
+                            name: f.name || api.SHORTNAME || '',
+                            gsz: api.GSZ !== null ? String(api.GSZ) : (api.NAV !== null ? String(api.NAV) : ''),
+                            gszzl: api.GSZZL !== null ? String(api.GSZZL) : (api.NAVCHGRT !== null ? String(api.NAVCHGRT) : ''),
+                            dwjz: api.NAV !== null ? String(api.NAV) : '',
+                            jzrq: api.PDATE || ''
+                        };
+                    });
+                }
+            } catch(e) {
+                // fallback: try eastmoney domain
+                try {
+                    const url2 = `https://fundcomapi.eastmoney.com/mm/newCore/FundValuationLast?FCODES=${codes}&FIELDS=FCODE,SHORTNAME,GSZ,GSZZL,NAV,PDATE,NAVCHGRT&t=${Date.now()}`;
+                    const resp2 = await fetch(url2);
+                    const json2 = await resp2.json();
+                    if (json2.success && json2.data) {
+                        const map = {};
+                        json2.data.forEach(r => { map[r.FCODE] = r; });
+                        return myFunds.map(f => {
+                            const api = map[f.code];
+                            if (!api) return { ...f, ok: false };
+                            return {
+                                ...f, ok: true,
+                                name: f.name || api.SHORTNAME || '',
+                                gsz: api.GSZ !== null ? String(api.GSZ) : (api.NAV !== null ? String(api.NAV) : ''),
+                                gszzl: api.GSZZL !== null ? String(api.GSZZL) : (api.NAVCHGRT !== null ? String(api.NAVCHGRT) : ''),
+                                dwjz: api.NAV !== null ? String(api.NAV) : '',
+                                jzrq: api.PDATE || ''
+                            };
+                        });
+                    }
+                } catch(e2) {}
+            }
+            return myFunds.map(f => ({ ...f, ok: false }));
         }
 
         async function initData() {
@@ -210,21 +248,10 @@
                 updateHeader(0, 0);
                 return;
             }
-            if(listDiv.children.length === 0 || listDiv.innerText.includes('直连')) {
-                listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在直连数据源...</div>';
-            }
+            listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在获取数据...</div>';
 
-            const results = [];
-            for (const f of myFunds) {
-                try {
-                    const data = await fetchFundJsonp(f.code);
-                    results.push({ ...f, ...data });
-                } catch(e) {
-                    results.push({ ...f, ok: false });
-                }
-            }
-            myFunds = results; 
-            render(results);
+            myFunds = await fetchAllFunds();
+            render(myFunds);
         }
 
         function render(data) {
@@ -317,19 +344,12 @@
             }
         }
 
-        function fetchTrendJsonp(code) {
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = `https://fund.eastmoney.com/pingzhongdata/${code}.js?t=${Date.now()}`;
-                script.onload = () => {
-                    if (typeof Data_netWorthTrend !== 'undefined') {
-                        resolve(Data_netWorthTrend);
-                        document.body.removeChild(script);
-                    } else { reject('No Data'); }
-                };
-                script.onerror = () => reject('Load Error');
-                document.body.appendChild(script);
-            });
+        async function fetchTrend(code) {
+            const resp = await fetch(`https://fund.eastmoney.com/pingzhongdata/${code}.js?t=${Date.now()}`);
+            const text = await resp.text();
+            const m = text.match(/var Data_netWorthTrend\s*=\s*(\[.*?\])\s*;/);
+            if (m) return JSON.parse(m[1]);
+            throw new Error('No data');
         }
 
         async function openChart(idx, code) {
@@ -343,7 +363,7 @@
             if (chartInstance) chartInstance.destroy();
 
             try {
-                const fullData = await fetchTrendJsonp(code);
+                const fullData = await fetchTrend(code);
                 currentChartData = fullData;
                 const lastNet = fullData[fullData.length-1].y;
                 document.getElementById('c_sub').innerText = `估值: ${gszDisplay} | 净值: ${lastNet}`;
