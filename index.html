@@ -344,12 +344,21 @@
             }
         }
 
-        async function fetchTrend(code) {
-            const resp = await fetch(`https://fund.eastmoney.com/pingzhongdata/${code}.js?t=${Date.now()}`);
-            const text = await resp.text();
-            const m = text.match(/var Data_netWorthTrend\s*=\s*(\[.*?\])\s*;/);
-            if (m) return JSON.parse(m[1]);
-            throw new Error('No data');
+        function fetchTrendJsonp(code) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = `https://fund.eastmoney.com/pingzhongdata/${code}.js?t=${Date.now()}`;
+                script.onload = () => {
+                    if (typeof Data_netWorthTrend !== 'undefined') {
+                        const data = Data_netWorthTrend;
+                        delete window.Data_netWorthTrend;
+                        document.body.removeChild(script);
+                        resolve(data);
+                    } else { reject('No Data'); }
+                };
+                script.onerror = () => reject('Load Error');
+                document.body.appendChild(script);
+            });
         }
 
         async function openChart(idx, code) {
@@ -363,7 +372,7 @@
             if (chartInstance) chartInstance.destroy();
 
             try {
-                const fullData = await fetchTrend(code);
+                const fullData = await fetchTrendJsonp(code);
                 currentChartData = fullData;
                 const lastNet = fullData[fullData.length-1].y;
                 document.getElementById('c_sub').innerText = `估值: ${gszDisplay} | 净值: ${lastNet}`;
