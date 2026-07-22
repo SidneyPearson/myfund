@@ -121,14 +121,17 @@ async function fillSinaEstimates() {
     const tasks = needSina.map(f =>
         fetchSina(f.code).then(d => {
             if (d.result?.status?.code === 0) {
-                const nw = d.result.data.networth;
+                const data = d.result.data;
+                const nw = data.networth;
                 if (nw && nw.length > 0) {
                     const latest = nw[nw.length - 1];
                     return {
                         code: f.code,
                         gsz: latest.pre_nav,
                         gszzl: (parseFloat(latest.growthrate) * 100).toFixed(2),
-                        gztime: latest.min_time
+                        gztime: latest.min_time,
+                        dwjz: data.worth,        // 新浪的昨日净值
+                        jzrq: data.worth_date     // 新浪的净值日期
                     };
                 }
             }
@@ -143,7 +146,7 @@ async function fillSinaEstimates() {
     myFunds = myFunds.map(f => {
         const s = map[f.code];
         if (s && s.gsz) {
-            return { ...f, gsz: s.gsz, gszzl: s.gszzl, gztime: s.gztime };
+            return { ...f, gsz: s.gsz, gszzl: s.gszzl, gztime: s.gztime, dwjz: s.dwjz, jzrq: s.jzrq };
         }
         return f;
     });
