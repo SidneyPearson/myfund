@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
     // 自动版本更新：localStorage 版本号不一致时强制刷新
-    (function(){var v='5';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
+    (function(){var v='6';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
     </script>
 
     <style>
@@ -281,7 +281,7 @@
             return funds.map(f => {
                 const s = map[f.code];
                 if (s && s.gsz) {
-                    return { ...f, gsz: s.gsz, gszzl: s.gszzl, gztime: s.gztime, dwjz: s.dwjz, jzrq: s.jzrq };
+                    return { ...f, gsz: s.gsz, gszzl: s.gszzl, gztime: s.gztime, dwjz: s.dwjz, jzrq: s.jzrq, _sinaOk: true };
                 }
                 return f;
             });
@@ -296,20 +296,31 @@
             }
             listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在获取数据...</div>';
 
+            let statusMsg = '';
             try {
-                // 批量接口超时 10 秒兜底
                 myFunds = await Promise.race([
                     fetchAllFunds(),
                     new Promise(r => setTimeout(() => r(myFunds), 10000))
                 ]);
-            } catch(e) {}
+            } catch(e) { statusMsg += '批量接口失败 '; }
             try {
-                // 主动型基金用新浪代理补实时估值（超时 8 秒兜底）
-                myFunds = await Promise.race([
+                const withSina = await Promise.race([
                     fillSinaWeb(myFunds),
                     new Promise(r => setTimeout(() => r(myFunds), 8000))
                 ]);
-            } catch(e) {}
+                myFunds = withSina;
+                const sinaCount = withSina.filter(f => f._sinaOk).length;
+                statusMsg += sinaCount > 0 ? `实时估值已更新(${sinaCount}只)` : '实时估值超时';
+            } catch(e) { statusMsg += '实时接口异常 '; }
+            
+            // 在列表顶部显示状态
+            if (statusMsg) {
+                const tip = document.createElement('div');
+                tip.style.cssText = 'text-align:center;padding:4px;font-size:11px;color:#999;background:#f9f9f9';
+                tip.innerText = statusMsg;
+                listDiv.innerHTML = '';
+                listDiv.appendChild(tip);
+            }
             render(myFunds);
         }
 
