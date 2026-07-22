@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
     // 自动版本更新：localStorage 版本号不一致时强制刷新
-    (function(){var v='6';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
+    (function(){var v='7';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
     </script>
 
     <style>
@@ -306,11 +306,12 @@
             try {
                 const withSina = await Promise.race([
                     fillSinaWeb(myFunds),
-                    new Promise(r => setTimeout(() => r(myFunds), 8000))
+                    new Promise(r => setTimeout(() => r(myFunds), 15000))
                 ]);
                 myFunds = withSina;
                 const sinaCount = withSina.filter(f => f._sinaOk).length;
-                statusMsg += sinaCount > 0 ? `实时估值已更新(${sinaCount}只)` : '实时估值超时';
+                const activeCount = withSina.filter(f => f._active).length;
+                statusMsg += sinaCount > 0 ? `实时估值已更新(${sinaCount}/${activeCount}只)` : (activeCount > 0 ? '实时估值超时(15s)' : '无需实时估值');
             } catch(e) { statusMsg += '实时接口异常 '; }
             
             // 在列表顶部显示状态
