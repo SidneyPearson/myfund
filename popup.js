@@ -103,13 +103,14 @@ function fetchWithTimeout(url, ms = 8000) {
     return fetch(url, { signal: controller.signal }).then(r => r.text());
 }
 
-// 新浪接口：获取主动型基金盘中实时估值
+// Cloudflare Worker 代理新浪估值 API（扩展和网页版通用）
+const SINA_PROXY = 'https://myfund-sina.laidou-api.workers.dev';
+
 function fetchSina(code) {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 8000);
-    return fetch(`https://stock.finance.sina.com.cn/fundInfo/api/openapi.php/FdFundService.getEstimateNetworthPic?symbol=${code}`, {
-        signal: controller.signal,
-        headers: { 'Referer': 'https://finance.sina.com.cn/' }
+    return fetch(`${SINA_PROXY}/?code=${code}`, {
+        signal: controller.signal
     }).then(r => r.json());
 }
 
