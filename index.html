@@ -240,6 +240,42 @@
             return myFunds.map(f => ({ ...f, ok: false }));
         }
 
+        async function fillSinaWeb(funds) {
+            const needSina = funds.filter(f => f.ok && !parseFloat(f.gsz || 0));
+            if (needSina.length === 0) return funds;
+
+            const tasks = needSina.map(f =>
+                fetch(`https://myfund-sina.laidou-api.workers.dev/?code=${f.code}`)
+                    .then(r => r.json())
+                    .then(d => {
+                        const nw = d.result?.data?.networth;
+                        if (nw && nw.length > 0) {
+                            const latest = nw[nw.length - 1];
+                            return {
+                                code: f.code,
+                                gsz: latest.pre_nav,
+                                gszzl: (parseFloat(latest.growthrate) * 100).toFixed(2),
+                                gztime: latest.min_time
+                            };
+                        }
+                        return { code: f.code };
+                    })
+                    .catch(() => ({ code: f.code }))
+            );
+
+            const results = await Promise.all(tasks);
+            const map = {};
+            results.forEach(r => { map[r.code] = r; });
+
+            return funds.map(f => {
+                const s = map[f.code];
+                if (s && s.gsz) {
+                    return { ...f, gsz: s.gsz, gszzl: s.gszzl, gztime: s.gztime };
+                }
+                return f;
+            });
+        }
+
         async function initData() {
             const listDiv = document.getElementById('fund_list');
             if (myFunds.length === 0) {
@@ -250,6 +286,8 @@
             listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在获取数据...</div>';
 
             myFunds = await fetchAllFunds();
+            // 主动型基金用新浪代理补实时估值
+            myFunds = await fillSinaWeb(myFunds);
             render(myFunds);
         }
 
