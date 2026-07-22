@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
     // 自动版本更新：localStorage 版本号不一致时强制刷新
-    (function(){var v='7';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
+    (function(){var v='8';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
     </script>
 
     <style>
@@ -311,8 +311,23 @@
                 myFunds = withSina;
                 const sinaCount = withSina.filter(f => f._sinaOk).length;
                 const activeCount = withSina.filter(f => f._active).length;
-                statusMsg += sinaCount > 0 ? `实时估值已更新(${sinaCount}/${activeCount}只)` : (activeCount > 0 ? '实时估值超时(15s)' : '无需实时估值');
-            } catch(e) { statusMsg += '实时接口异常 '; }
+                if (sinaCount > 0) {
+                    statusMsg = `✅ 实时估值 (${sinaCount}/${activeCount}只)`;
+                } else if (activeCount > 0) {
+                    statusMsg = `⚠️ 实时估值超时，显示昨日数据`;
+                    // 用日涨跌反推"当前价"作为兜底
+                    myFunds = myFunds.map(f => {
+                        if (f._active && !f._sinaOk) {
+                            const nav = parseFloat(f.dwjz) || 0;
+                            const chg = parseFloat(f.gszzl) || 0;
+                            return { ...f, gsz: String(nav * (1 + chg/100)), _sinaOk: false };
+                        }
+                        return f;
+                    });
+                } else {
+                    statusMsg = statusMsg || '';
+                }
+            } catch(e) { statusMsg = '⚠️ 接口异常，显示本地数据 '; }
             
             // 在列表顶部显示状态
             if (statusMsg) {
