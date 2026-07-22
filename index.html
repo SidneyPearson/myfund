@@ -209,7 +209,8 @@
                 gsz: gszStr,
                 gszzl: gszVal !== null ? String(api.GSZZL) : (navchg !== null ? String(navchg) : ''),
                 dwjz: dwjzStr,
-                jzrq: api.PDATE || ''
+                jzrq: api.PDATE || '',
+                _active: gszVal === null
             };
         }
 
@@ -241,7 +242,7 @@
         }
 
         async function fillSinaWeb(funds) {
-            const needSina = funds.filter(f => f.ok && !parseFloat(f.gsz || 0));
+            const needSina = funds.filter(f => f.ok && f._active);
             if (needSina.length === 0) return funds;
 
             const tasks = needSina.map(f =>

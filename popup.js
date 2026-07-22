@@ -86,7 +86,8 @@ function applyBatchResult(resp) {
                 gszzl: gszVal !== null ? String(api.GSZZL) : (navchg !== null ? String(navchg) : ''),
                 gztime: api.GZTIME || '',
                 dwjz: dwjzStr,
-                jzrq: api.PDATE || ''
+                jzrq: api.PDATE || '',
+                _active: gszVal === null  // 标记主动型基金，需要新浪估值
             };
         });
     } else {
@@ -113,7 +114,7 @@ function fetchSina(code) {
 }
 
 async function fillSinaEstimates() {
-    const needSina = myFunds.filter(f => f.ok && !parseFloat(f.gsz || 0));
+    const needSina = myFunds.filter(f => f.ok && f._active);
     if (needSina.length === 0) return;
 
     const tasks = needSina.map(f =>

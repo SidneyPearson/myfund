@@ -14,7 +14,7 @@
     "https://fund.eastmoney.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; connect-src https://fundcomapi.tiantianfunds.com https://fundcomapi.eastmoney.com https://fund.eastmoney.com http://fund.eastmoney.com; object-src 'self'"
+    "extension_pages": "script-src 'self'; connect-src https://fundcomapi.tiantianfunds.com https://fundcomapi.eastmoney.com https://stock.finance.sina.com.cn https://fund.eastmoney.com http://fund.eastmoney.com; object-src 'self'"
   },
   "action": {
     "default_popup": "popup.html",
