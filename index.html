@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
     // 自动版本更新：localStorage 版本号不一致时强制刷新
-    (function(){var v='3';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
+    (function(){var v='4';if(localStorage.getItem('_fv')!==v){localStorage.setItem('_fv',v);location.reload(true)}})();
     </script>
 
     <style>
@@ -296,9 +296,18 @@
             }
             listDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#999">正在获取数据...</div>';
 
-            myFunds = await fetchAllFunds();
-            // 主动型基金用新浪代理补实时估值
-            myFunds = await fillSinaWeb(myFunds);
+            try {
+                myFunds = await fetchAllFunds();
+            } catch(e) {
+                // 批量接口挂了，保留旧数据
+            }
+            try {
+                // 主动型基金用新浪代理补实时估值（超时 8 秒兜底）
+                myFunds = await Promise.race([
+                    fillSinaWeb(myFunds),
+                    new Promise(r => setTimeout(() => r(myFunds), 8000))
+                ]);
+            } catch(e) {}
             render(myFunds);
         }
 
