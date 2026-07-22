@@ -37,7 +37,6 @@ async function fetchData() {
         const resp = JSON.parse(text);
         applyBatchResult(resp);
     } catch (e) {
-        // 主域名失败，尝试备用域名
         try {
             const url2 = `https://fundcomapi.eastmoney.com/mm/newCore/FundValuationLast?FCODES=${codes}&FIELDS=${fields}&t=${Date.now()}`;
             const text2 = await fetchWithTimeout(url2, 8000);
@@ -47,6 +46,9 @@ async function fetchData() {
             myFunds = myFunds.map(f => ({ ...f, ok: false }));
         }
     }
+
+    // 主动型基金用新浪接口补实时盘中估值
+    await fillSinaEstimates();
 
     renderList();
     calcTotal();
@@ -98,6 +100,51 @@ function fetchWithTimeout(url, ms = 8000) {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), ms);
     return fetch(url, { signal: controller.signal }).then(r => r.text());
+}
+
+// 新浪接口：获取主动型基金盘中实时估值
+function fetchSina(code) {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 8000);
+    return fetch(`https://stock.finance.sina.com.cn/fundInfo/api/openapi.php/FdFundService.getEstimateNetworthPic?symbol=${code}`, {
+        signal: controller.signal,
+        headers: { 'Referer': 'https://finance.sina.com.cn/' }
+    }).then(r => r.json());
+}
+
+async function fillSinaEstimates() {
+    const needSina = myFunds.filter(f => f.ok && !parseFloat(f.gsz || 0));
+    if (needSina.length === 0) return;
+
+    const tasks = needSina.map(f =>
+        fetchSina(f.code).then(d => {
+            if (d.result?.status?.code === 0) {
+                const nw = d.result.data.networth;
+                if (nw && nw.length > 0) {
+                    const latest = nw[nw.length - 1];
+                    return {
+                        code: f.code,
+                        gsz: latest.pre_nav,
+                        gszzl: (parseFloat(latest.growthrate) * 100).toFixed(2),
+                        gztime: latest.min_time
+                    };
+                }
+            }
+            return { code: f.code };
+        }).catch(() => ({ code: f.code }))
+    );
+
+    const results = await Promise.all(tasks);
+    const map = {};
+    results.forEach(r => { map[r.code] = r; });
+
+    myFunds = myFunds.map(f => {
+        const s = map[f.code];
+        if (s && s.gsz) {
+            return { ...f, gsz: s.gsz, gszzl: s.gszzl, gztime: s.gztime };
+        }
+        return f;
+    });
 }
 
 // ================== 列表渲染与拖拽 ==================

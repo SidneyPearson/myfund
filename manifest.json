@@ -9,6 +9,7 @@
  "host_permissions": [
     "https://fundcomapi.tiantianfunds.com/*",
     "https://fundcomapi.eastmoney.com/*",
+    "https://stock.finance.sina.com.cn/*",
     "http://fund.eastmoney.com/*",
     "https://fund.eastmoney.com/*"
   ],
